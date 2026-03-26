@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 06-wsl2-audio-relay
 source: 06-01-SUMMARY.md, 06-02-SUMMARY.md
 started: 2026-03-25T20:00:00Z
@@ -57,17 +57,24 @@ skipped: 2
   reason: "User reported: Listening message printed twice. App crashes with unhandled error: spawn ffmpeg.exe ENOENT — the ChildProcess error event on WslAudioRelayServer is not caught, crashes the entire process instead of being non-fatal."
   severity: blocker
   test: 2
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Duplicate log: message printed in both WslAudioRelayServer.start() (line 33) and src/index.ts (line 58). Crash: spawnCaptureBridge/spawnOutputBridge re-emit ChildProcess errors onto WslAudioRelayServer via this.emit('error', err), but no error listener is registered on the instance in src/index.ts."
+  artifacts:
+    - path: "src/audio/wsl2-relay-server.ts"
+      issue: "Lines 223-225 and 260-262: bridge error handlers re-emit onto class instance"
+    - path: "src/index.ts"
+      issue: "Lines 56-63: no .on('error') listener registered on relayServer"
+  missing:
+    - "Remove duplicate log message from either wsl2-relay-server.ts:33 or index.ts:58"
+    - "Add relayServer.on('error', ...) in index.ts OR change bridge error handlers to console.warn instead of re-emitting"
 
 - truth: "Relay failure is non-fatal — app logs warning and continues"
   status: failed
   reason: "User reported: App crashes with unhandled 'error' event from ChildProcess on WslAudioRelayServer when ffmpeg.exe is not found (ENOENT). The error bubbles up and kills the process instead of being caught and logged as a warning."
   severity: blocker
   test: 4
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "Same root cause as test 2 — ChildProcess 'error' events are re-emitted onto WslAudioRelayServer with no listener, causing Node.js to throw unhandled error and crash the process."
+  artifacts:
+    - path: "src/audio/wsl2-relay-server.ts"
+      issue: "Lines 223-225 and 260-262: this.emit('error', err) with no consumer"
+  missing:
+    - "Bridge spawn errors must be caught and logged as warnings, not propagated as fatal errors"
