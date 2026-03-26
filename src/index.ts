@@ -8,6 +8,8 @@ import { DeviceManager } from './devices/index.js';
 import { detectPlatform } from './platform/detect.js';
 import { createAudioCapture, createAudioOutput } from './audio/index.js';
 import type { AudioCapture, AudioOutput } from './audio/index.js';
+import { createVideoFeed, DEFAULT_PLACEHOLDER_PATH } from './video/index.js';
+import type { VideoFeed } from './video/index.js';
 
 async function main(): Promise<void> {
   console.log('=== AI Meet Agent ===');
@@ -81,6 +83,30 @@ async function main(): Promise<void> {
     console.warn('[AudioPipeline] Audio pipeline will not be active this session.');
   }
 
+  // Start video feed
+  let videoFeed: VideoFeed | null = null;
+
+  try {
+    videoFeed = createVideoFeed(config.devices.camera.videoNr, config.video.mjpegPort, platform);
+    const imagePath = config.devices.camera.imagePath ?? DEFAULT_PLACEHOLDER_PATH;
+    videoFeed.start(imagePath);
+
+    videoFeed.on('restarting', () => console.log('[VideoFeed] Restarting...'));
+    videoFeed.on('error', (err: Error) => {
+      console.warn(`[VideoFeed] Error: ${err.message}`);
+    });
+
+    if (platform === 'wsl2') {
+      console.log(`\n[VideoFeed] MJPEG stream at http://localhost:${config.video.mjpegPort}/feed`);
+      console.log('[VideoFeed] Configure OBS Media Source — see docs/wsl2-video-setup.md');
+    } else {
+      console.log(`\n[VideoFeed] Static image streaming to /dev/video${config.devices.camera.videoNr}`);
+    }
+  } catch (err) {
+    console.warn(`[VideoFeed] Could not start: ${(err as Error).message}`);
+    console.warn('[VideoFeed] Video feed will not be active this session.');
+  }
+
   console.log('\nPress Ctrl+C to stop and clean up.');
 
   // Shutdown handler: stop audio first, then devices
@@ -91,6 +117,9 @@ async function main(): Promise<void> {
     }
     if (output) {
       try { output.stop(); } catch { /* ignore */ }
+    }
+    if (videoFeed) {
+      try { videoFeed.stop(); } catch { /* ignore */ }
     }
     manager.shutdown();
     process.exit(0);
