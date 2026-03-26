@@ -67,4 +67,53 @@ describe('buildSystemPrompt', () => {
     const lines = prompt.split('\n').filter(l => l.trim());
     assert.equal(lines.length, 2);
   });
+
+  it('includes meeting context under heading when provided', () => {
+    const meetingContent = '## Agenda\n- Discuss roadmap\n\n## Attendees\n- Alice (PM)';
+    const prompt = buildSystemPrompt({
+      name: 'Bot',
+      role: 'Helper',
+      background: '',
+      instructions: '',
+      introduceOnStart: false,
+    }, meetingContent);
+    assert.ok(prompt.includes('## Meeting Context'));
+    assert.ok(prompt.includes('## Agenda'));
+    assert.ok(prompt.includes('Alice (PM)'));
+  });
+
+  it('omits meeting context section when meetingContext is empty string', () => {
+    const prompt = buildSystemPrompt({
+      name: 'Bot',
+      role: 'Helper',
+      background: '',
+      instructions: '',
+      introduceOnStart: false,
+    }, '');
+    assert.ok(!prompt.includes('Meeting Context'));
+  });
+
+  it('omits meeting context section when meetingContext is undefined', () => {
+    const prompt = buildSystemPrompt({
+      name: 'Bot',
+      role: 'Helper',
+      background: '',
+      instructions: '',
+      introduceOnStart: false,
+    });
+    assert.ok(!prompt.includes('Meeting Context'));
+  });
+
+  it('maintains backward compatibility — no meetingContext produces same output', () => {
+    const persona = {
+      name: 'Alice',
+      role: 'Lead',
+      background: 'Expert',
+      instructions: 'Be brief.',
+      introduceOnStart: true,
+    };
+    const withoutMeeting = buildSystemPrompt(persona);
+    const withUndefined = buildSystemPrompt(persona, undefined);
+    assert.equal(withoutMeeting, withUndefined);
+  });
 });
