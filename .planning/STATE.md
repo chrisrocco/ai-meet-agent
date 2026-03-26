@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-03-25)
 ## Current Position
 
 Phase: 1 of 5 (Virtual Device Setup)
-Plan: 1 of 4 in current phase
+Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-03-26 — Plan 01-01 complete (project bootstrap, config schema, platform detection)
+Last activity: 2026-03-26 — Plan 01-02 complete (native Linux device layer: prerequisites, virtual camera, virtual audio, DeviceManager)
 
-Progress: [█░░░░░░░░░] 5%
+Progress: [██░░░░░░░░] 10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 2 min
-- Total execution time: 0.03 hours
+- Total execution time: 0.07 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-virtual-device-setup | 1 | 2 min | 2 min |
+| 01-virtual-device-setup | 2 | 4 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min)
-- Trend: —
+- Last 5 plans: 01-01 (2 min), 01-02 (2 min)
+- Trend: steady
 
 *Updated after each plan completion*
 
@@ -47,6 +47,9 @@ Recent decisions affecting current work:
 - [01-01]: Use tsx as test runner (not Node --experimental-strip-types) — tsx resolves .js -> .ts imports in ESM projects.
 - [01-01]: Zod nested .default({}) must be applied at every object level, not just the top-level, for full cascading defaults.
 - [01-01]: tsconfig module must be "NodeNext" not "ESNodeNext" (ESNodeNext is not a valid TS value).
+- [01-02]: Added declaration: true to tsconfig.json — .d.ts files required for TypeScript consumers importing device modules.
+- [01-02]: DeviceManager.startup() throws on prereq failure — callers must handle failure path explicitly.
+- [01-02]: Virtual mic uses media.class=Audio/Source/Virtual so Chrome exposes it as microphone input, not monitor.
 
 ### Pending Todos
 
@@ -60,5 +63,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-26
-Stopped at: Completed 01-virtual-device-setup plan 01-01 (project bootstrap, config schema, platform detection)
+Stopped at: Completed 01-virtual-device-setup plan 01-02 (native Linux device layer: prerequisites, virtual camera, virtual audio, DeviceManager)
 Resume file: None

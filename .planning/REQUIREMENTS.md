@@ -83,8 +83,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VDEV-01 | Phase 1 | Pending |
-| VDEV-02 | Phase 1 | Pending |
+| VDEV-01 | Phase 1 | In Progress (device layer built; browser verification in plan 04) |
+| VDEV-02 | Phase 1 | In Progress (device layer built; browser verification in plan 04) |
 | VDEV-03 | Phase 3 | Pending |
 | AUDI-01 | Phase 2 | Pending |
 | AUDI-02 | Phase 4 | Pending |
@@ -106,4 +106,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-25*
-*Last updated: 2026-03-25 after roadmap creation*
+*Last updated: 2026-03-26 after plan 01-02 (VDEV-01, VDEV-02 in progress)*
