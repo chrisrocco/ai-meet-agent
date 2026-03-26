@@ -221,7 +221,7 @@ export class WslAudioRelayServer extends EventEmitter {
     });
 
     this.captureProc.on('error', (err) => {
-      this.emit('error', err);
+      console.warn(`[AudioRelay:capture] Bridge error: ${err.message}`);
     });
   }
 
@@ -258,7 +258,7 @@ export class WslAudioRelayServer extends EventEmitter {
     });
 
     this.outputProc.on('error', (err) => {
-      this.emit('error', err);
+      console.warn(`[AudioRelay:output] Bridge error: ${err.message}`);
     });
   }
 

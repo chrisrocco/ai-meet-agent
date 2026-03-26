@@ -8,7 +8,6 @@ import { detectPlatform } from './platform/detect.js';
 import { createAudioCapture, createAudioOutput } from './audio/index.js';
 import type { AudioCapture, AudioOutput } from './audio/index.js';
 import { WslAudioRelayServer } from './audio/wsl2-relay-server.js';
-import { RELAY_PORT } from './audio/wsl2-relay.js';
 import { createVideoFeed, DEFAULT_PLACEHOLDER_PATH } from './video/index.js';
 import type { VideoFeed } from './video/index.js';
 import { GeminiLiveSession, buildSystemPrompt } from './ai/index.js';
@@ -55,7 +54,6 @@ async function main(): Promise<void> {
     try {
       relayServer = new WslAudioRelayServer(config);
       await relayServer.start();
-      console.log(`[AudioRelay] TCP relay listening on port ${RELAY_PORT}`);
     } catch (err) {
       console.warn(`[AudioRelay] Could not start relay: ${(err as Error).message}`);
       console.warn('[AudioRelay] WSL2 audio pipeline will not be active.');
