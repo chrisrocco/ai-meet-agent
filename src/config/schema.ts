@@ -21,7 +21,7 @@ export const ConfigSchema = z.object({
   }).default({}),
   wsl2: z.object({
     captureDevice: z.string().default('CABLE Output (VB-Audio Virtual Cable)'),
-    outputDeviceIndex: z.number().int().min(0).default(0),
+    outputDevice: z.string().default('Voicemeeter Input (VB-Audio Voicemeeter VAIO)'),
     ffmpegPath: z.string().default('ffmpeg.exe'),
     ffplayPath: z.string().default('ffplay.exe'),
   }).default({}),
@@ -36,7 +36,7 @@ export const ConfigSchema = z.object({
     introduceOnStart: z.boolean().default(true),
   }).default({}),
   ai: z.object({
-    model: z.string().default('gemini-2.5-flash-native-audio-preview-12-2025'),
+    model: z.string().default('gemini-2.5-flash-native-audio-latest'),
   }).default({}),
 });
 

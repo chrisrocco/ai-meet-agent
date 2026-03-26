@@ -226,22 +226,26 @@ export class WslAudioRelayServer extends EventEmitter {
   }
 
   private spawnOutputBridge(): void {
-    const args = [
+    const ffplayArgs = [
       '-f', 's16le',
       '-ar', '16000',
-      '-ac', '1',
+      '-ch_layout', 'mono',
       '-nodisp',
       '-autoexit',
-    ];
+      '-i', 'pipe:0',
+    ].join(' ');
 
-    // Only add -audio_device_index if non-default (> 0)
-    if (this.config.wsl2.outputDeviceIndex > 0) {
-      args.push('-audio_device_index', String(this.config.wsl2.outputDeviceIndex));
-    }
+    // WSL2 interop doesn't pass env vars to Windows .exe — use cmd.exe
+    // to set SDL_AUDIODRIVER=directsound (WASAPI fails from WSL2) and
+    // SDL_AUDIO_DEVICE_NAME to target a specific playback device.
+    const device = this.config.wsl2.outputDevice;
+    const cmdLine = device
+      ? `set SDL_AUDIODRIVER=directsound&& set SDL_AUDIO_DEVICE_NAME=${device}&& ${this.config.wsl2.ffplayPath} ${ffplayArgs}`
+      : `set SDL_AUDIODRIVER=directsound&& ${this.config.wsl2.ffplayPath} ${ffplayArgs}`;
 
-    args.push('-i', 'pipe:0');
+    console.log(`[AudioRelay:output] Targeting device: ${device || '(default)'}`);
 
-    this.outputProc = spawn(this.config.wsl2.ffplayPath, args, {
+    this.outputProc = spawn('cmd.exe', ['/C', cmdLine], {
       stdio: ['pipe', 'ignore', 'pipe'],
       env: process.env,
     });
