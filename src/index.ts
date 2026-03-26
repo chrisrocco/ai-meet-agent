@@ -7,6 +7,8 @@ import { DeviceManager } from './devices/index.js';
 import { detectPlatform } from './platform/detect.js';
 import { createAudioCapture, createAudioOutput } from './audio/index.js';
 import type { AudioCapture, AudioOutput } from './audio/index.js';
+import { WslAudioRelayServer } from './audio/wsl2-relay-server.js';
+import { RELAY_PORT } from './audio/wsl2-relay.js';
 import { createVideoFeed, DEFAULT_PLACEHOLDER_PATH } from './video/index.js';
 import type { VideoFeed } from './video/index.js';
 import { GeminiLiveSession, buildSystemPrompt } from './ai/index.js';
@@ -45,6 +47,19 @@ async function main(): Promise<void> {
     console.log(`  Camera: ${status.cameraDevice}`);
     console.log(`  Sink:   ${status.audioSinkName}`);
     console.log(`  Mic:    ${status.audioMicName}`);
+  }
+
+  // Start WSL2 audio relay (must be before audio pipeline creation)
+  let relayServer: WslAudioRelayServer | null = null;
+  if (platform === 'wsl2') {
+    try {
+      relayServer = new WslAudioRelayServer(config);
+      await relayServer.start();
+      console.log(`[AudioRelay] TCP relay listening on port ${RELAY_PORT}`);
+    } catch (err) {
+      console.warn(`[AudioRelay] Could not start relay: ${(err as Error).message}`);
+      console.warn('[AudioRelay] WSL2 audio pipeline will not be active.');
+    }
   }
 
   // Start audio pipeline
@@ -177,6 +192,9 @@ async function main(): Promise<void> {
     }
     if (output) {
       try { output.stop(); } catch { /* ignore */ }
+    }
+    if (relayServer) {
+      try { relayServer.stop(); } catch { /* ignore */ }
     }
     if (videoFeed) {
       try { videoFeed.stop(); } catch { /* ignore */ }
