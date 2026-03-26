@@ -65,6 +65,12 @@ async function main(): Promise<void> {
     });
 
     capture.on('reconnecting', () => console.log('[Capture] Reconnecting...'));
+    capture.on('error', (err: Error) => {
+      console.warn(`[Capture] Error: ${err.message}`);
+    });
+    output.on('error', (err: Error) => {
+      console.warn(`[Output] Error: ${err.message}`);
+    });
 
     // Consume capture stream (discard for now — Phase 4 connects to AI API)
     captureStream.on('data', () => { /* Phase 4 pipes this to Gemini Live API */ });
