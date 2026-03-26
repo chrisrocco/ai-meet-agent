@@ -109,6 +109,105 @@ The DeviceManager (src/devices/index.ts) will pass the correct flags when launch
 
 ---
 
+## Step 6: Audio Relay Setup (ffmpeg/ffplay Bridge)
+
+The WSL2 audio relay uses ffmpeg.exe and ffplay.exe on Windows to bridge audio between VB-Cable and the Node.js TCP relay server running in WSL2.
+
+### Install ffmpeg/ffplay on Windows
+
+**Option A: winget (recommended)**
+```
+winget install Gyan.FFmpeg
+```
+
+**Option B: Manual download**
+1. Download from https://www.gyan.dev/ffmpeg/builds/ (essentials build)
+2. Extract to a folder (e.g., `C:\ffmpeg\`)
+3. Add the `bin\` folder to your Windows PATH
+
+**Verify from WSL2:**
+```bash
+ffmpeg.exe -version
+ffplay.exe -version
+```
+
+If not on PATH, set full Windows paths in config.json:
+```json
+{
+  "wsl2": {
+    "ffmpegPath": "/mnt/c/Users/chris/AppData/Local/Microsoft/WinGet/Links/ffmpeg.exe",
+    "ffplayPath": "/mnt/c/Users/chris/AppData/Local/Microsoft/WinGet/Links/ffplay.exe"
+  }
+}
+```
+
+### Configure Chrome Audio Routing for Meet
+
+In Google Meet, route participant audio through VB-Cable so the relay can capture it:
+
+1. In Google Meet, click **⋮** → **Settings** → **Audio**
+2. Set **"Speakers"** to **"CABLE Input (VB-Audio Virtual Cable)"**
+3. This routes Meet participant audio through VB-Cable for the relay to capture
+
+**Alternative:** Set CABLE Input as the Windows system default output (affects all apps).
+
+### Operator Monitoring (Hearing Meet Audio Through Speakers)
+
+To hear Meet audio yourself while the relay captures it:
+
+1. Open Windows Sound settings → **Recording devices**
+2. Right-click **"CABLE Output (VB-Audio Virtual Cable)"** → **Properties**
+3. Go to **"Listen"** tab → check **"Listen to this device"**
+4. Select your speakers/headphones as the playback device → **OK**
+
+This mirrors CABLE Output to your speakers while still allowing the relay to capture it.
+
+### Verify Audio Devices
+
+**List capture (input) devices:**
+```bash
+ffmpeg.exe -list_devices true -f dshow -i dummy
+```
+Look for **"CABLE Output (VB-Audio Virtual Cable)"** — this is the capture device name.
+
+If the name differs from the default, set it in config.json:
+```json
+{
+  "wsl2": {
+    "captureDevice": "Your Actual Device Name"
+  }
+}
+```
+
+**Find output device index:**
+```bash
+ffplay.exe -f s16le -ar 16000 -ac 1 -nodisp -i /dev/zero
+```
+If the wrong device plays audio, try different `-audio_device_index` values (0, 1, 2...).
+Set `wsl2.outputDeviceIndex` in config.json to the correct index for CABLE Input.
+
+### Config Example
+
+```json
+{
+  "wsl2": {
+    "captureDevice": "CABLE Output (VB-Audio Virtual Cable)",
+    "outputDeviceIndex": 2,
+    "ffmpegPath": "ffmpeg.exe",
+    "ffplayPath": "ffplay.exe"
+  }
+}
+```
+
+### Testing the Relay
+
+1. Run `npm run dev` from WSL2
+2. You should see: `[AudioRelay] TCP relay listening on port 19876`
+3. You should see: `[AudioRelay] Capture client connected` and `[AudioRelay] Output client connected`
+4. If bridge processes fail, check stderr output for device name mismatches
+
+---
+
 ## Troubleshooting
 
 **OBS Virtual Camera not appearing in Chrome:**
@@ -134,12 +233,14 @@ WSL2 Node.js process
   │
   ├─ Video: FFmpeg / OBS WebSocket → OBS Scene → OBS Virtual Camera → Chrome (DirectShow)
   │
-  └─ Audio: PulseAudio TCP / FFI bridge → VB-Cable CABLE Input → CABLE Output → Chrome (WASAPI)
+  └─ Audio: TCP Relay (port 19876)
+       ├─ Capture: ffmpeg.exe (dshow) → raw PCM → framed TCP → Wsl2AudioCapture client
+       └─ Output:  Wsl2AudioOutput client → framed TCP → raw PCM → ffplay.exe (SDL)
 ```
 
-Bridge implementation is Phase 2 (audio) and Phase 3 (video).
+The audio relay server runs inside WSL2 as part of `npm run dev`. It spawns ffmpeg.exe and ffplay.exe on the Windows side via WSL2 interop to access VB-Cable audio devices.
 
 ---
 
-*Last updated: 2026-03-26*
+*Last updated: 2026-03-25*
 *See also: docs/wsl2-setup.md for architecture decision and full context*
