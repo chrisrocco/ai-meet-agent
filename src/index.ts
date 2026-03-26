@@ -1,8 +1,11 @@
 /**
  * AI Meet Agent — Main entry point
- * Starts virtual devices, audio pipeline, AI session, registers shutdown handlers, and runs until Ctrl+C.
+ * Single-command startup: npm run start -- --config <path> --meeting <path>
+ * Starts virtual devices, audio pipeline, AI session with meeting context,
+ * operator audio monitor, transcript logging, and video feed.
  */
-import { loadConfig } from './config/loader.js';
+import { parseCliArgs, loadConfig } from './config/loader.js';
+import { loadMeetingContext } from './meeting/loader.js';
 import { DeviceManager } from './devices/index.js';
 import { detectPlatform } from './platform/detect.js';
 import { createAudioCapture, createAudioOutput } from './audio/index.js';
@@ -11,21 +14,38 @@ import { WslAudioRelayServer } from './audio/wsl2-relay-server.js';
 import { createVideoFeed, DEFAULT_PLACEHOLDER_PATH } from './video/index.js';
 import type { VideoFeed } from './video/index.js';
 import { GeminiLiveSession, buildSystemPrompt } from './ai/index.js';
+import { TranscriptWriter } from './transcript/writer.js';
+import { OperatorAudioMonitor } from './monitor/operator-audio.js';
 
 async function main(): Promise<void> {
   console.log('=== AI Meet Agent ===');
   console.log('');
 
+  // Parse CLI arguments
+  const args = parseCliArgs(process.argv);
+
   const platform = detectPlatform();
   console.log(`Platform: ${platform}`);
 
-  const config = loadConfig();
+  // Load config (returns defaults if no config file exists and no --config flag)
+  const config = loadConfig(args.configPath);
 
   if (platform !== 'wsl2') {
     console.log(`Camera: ${config.devices.camera.label} (/dev/video${config.devices.camera.videoNr})`);
     console.log(`Mic:    ${config.devices.mic.label}`);
   }
   console.log('');
+
+  // Load meeting context (optional)
+  let meetingContext: string | undefined;
+  if (args.meetingPath) {
+    meetingContext = loadMeetingContext(args.meetingPath);
+    console.log(`[Meeting] Loaded context from: ${args.meetingPath}`);
+  }
+
+  // Initialize transcript writer
+  const transcript = new TranscriptWriter('./transcript.log');
+  console.log('[Transcript] Writing to ./transcript.log');
 
   const manager = new DeviceManager(config, platform);
 
@@ -60,7 +80,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Start audio pipeline
+  // Start audio pipeline — CRITICAL PATH (must succeed)
   let capture: AudioCapture | null = null;
   let output: AudioOutput | null = null;
   let outputStream: import('stream').Writable | null = null;
@@ -91,69 +111,81 @@ async function main(): Promise<void> {
 
     console.log('\n[AudioPipeline] Capture and output streams started.');
   } catch (err) {
-    console.warn(`[AudioPipeline] Could not start audio: ${(err as Error).message}`);
-    console.warn('[AudioPipeline] Audio pipeline will not be active this session.');
+    console.error(`\n[FATAL] Audio pipeline failed: ${(err as Error).message}`);
+    console.error('[FATAL] Audio is required for AI conversation. Cannot continue.');
+    process.exit(1);
   }
 
-  // AI Session
-  let session: GeminiLiveSession | null = null;
+  // AI Session — CRITICAL PATH (must succeed)
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    console.warn('\n[AI] GEMINI_API_KEY not set — AI session disabled.');
-    console.warn('[AI] Set GEMINI_API_KEY environment variable to enable AI responses.');
-  } else if (!captureStream || !outputStream) {
-    console.warn('\n[AI] Audio pipeline not available — AI session disabled.');
-  } else {
-    const systemPrompt = buildSystemPrompt(config.persona);
-    session = new GeminiLiveSession({
-      apiKey,
-      model: config.ai.model,
-      systemPrompt,
-      maxRetries: 5,
-    });
-
-    // Wire AI audio output to virtual mic
-    session.on('audio', (pcm16k: Buffer) => {
-      if (outputStream) {
-        outputStream.write(pcm16k);
-      }
-    });
-
-    // Wire capture to AI input
-    captureStream.on('data', (chunk: Buffer) => {
-      if (session) {
-        session.sendAudio(chunk);
-      }
-    });
-
-    // Session event logging
-    session.on('connected', () => {
-      console.log('[AI] Connected to Gemini Live API');
-      console.log(`[AI] Persona: ${config.persona.name} (${config.persona.role})`);
-    });
-    session.on('disconnected', () => console.log('[AI] Disconnected'));
-    session.on('error', (err: Error) => {
-      console.error(`[AI] Error: ${err.message}`);
-    });
-    session.on('latency', (ms: number) => {
-      if (ms > 2000) {
-        console.warn(`[AI] High latency: ${ms}ms (threshold: 2000ms)`);
-      }
-    });
-
-    // Start connection
-    console.log(`\n[AI] Session configured: ${config.ai.model}`);
-    console.log(`[AI] Persona: ${config.persona.name} (${config.persona.role})`);
-    try {
-      await session.connect();
-    } catch (err) {
-      console.warn(`[AI] Could not connect: ${(err as Error).message}`);
-      console.warn('[AI] AI session will not be active. Retrying may occur automatically.');
-    }
+    console.error('\n[FATAL] GEMINI_API_KEY not set. AI session is required.');
+    console.error('[FATAL] Set GEMINI_API_KEY environment variable to enable AI responses.');
+    process.exit(1);
   }
 
-  // Start video feed
+  const systemPrompt = buildSystemPrompt(config.persona, meetingContext);
+  const session = new GeminiLiveSession({
+    apiKey,
+    model: config.ai.model,
+    systemPrompt,
+    maxRetries: 5,
+  });
+
+  // Session event logging
+  session.on('connected', () => {
+    console.log('[AI] Connected to Gemini Live API');
+    console.log(`[AI] Persona: ${config.persona.name} (${config.persona.role})`);
+  });
+  session.on('disconnected', () => console.log('[AI] Disconnected'));
+  session.on('error', (err: Error) => {
+    console.error(`[AI] Error: ${err.message}`);
+  });
+  session.on('latency', (ms: number) => {
+    if (ms > 2000) {
+      console.warn(`[AI] High latency: ${ms}ms (threshold: 2000ms)`);
+    }
+  });
+
+  // Wire transcript to AI text events
+  session.on('text', (text: string) => {
+    transcript.writeAI(config.persona.name, text);
+  });
+
+  // Start AI connection — CRITICAL PATH
+  console.log(`\n[AI] Session configured: ${config.ai.model}`);
+  console.log(`[AI] Persona: ${config.persona.name} (${config.persona.role})`);
+  try {
+    await session.connect();
+  } catch (err) {
+    console.error(`\n[FATAL] AI session failed: ${(err as Error).message}`);
+    console.error('[FATAL] AI session is required for conversation. Cannot continue.');
+    process.exit(1);
+  }
+
+  // Start operator audio monitor (non-fatal if ffplay unavailable)
+  const monitor = new OperatorAudioMonitor();
+  try {
+    monitor.start(platform, platform === 'wsl2' ? config.wsl2.ffplayPath : undefined);
+    console.log('[Monitor] Operator audio monitor active');
+  } catch (err) {
+    console.warn(`[Monitor] Could not start: ${(err as Error).message}`);
+    console.warn('[Monitor] Operator will not hear audio locally.');
+  }
+
+  // Wire audio: participant audio → AI + monitor, AI audio → virtual mic + monitor
+  captureStream!.on('data', (chunk: Buffer) => {
+    session.sendAudio(chunk);
+    monitor.write(chunk);
+  });
+
+  session.on('audio', (pcm16k: Buffer) => {
+    outputStream!.write(pcm16k);
+    monitor.write(pcm16k);
+  });
+
+  // Start video feed (non-fatal — video failure degrades gracefully)
   let videoFeed: VideoFeed | null = null;
 
   try {
@@ -177,14 +209,20 @@ async function main(): Promise<void> {
     console.warn('[VideoFeed] Video feed will not be active this session.');
   }
 
-  console.log('\nPress Ctrl+C to stop and clean up.');
+  // Startup banner
+  console.log('\n=== System Ready ===');
+  console.log(`Platform:   ${platform}`);
+  console.log(`Persona:    ${config.persona.name} (${config.persona.role})`);
+  if (meetingContext) console.log(`Meeting:    ${args.meetingPath}`);
+  console.log(`Transcript: ./transcript.log`);
+  console.log(`Monitor:    Active (operator hears both sides)`);
+  console.log('\nPress Ctrl+C to stop.');
 
-  // Shutdown handler: AI session first, then audio, video, devices
+  // Shutdown handler: AI session first, then monitor, audio, relay, video, devices
   const shutdown = () => {
     console.log('\n[Shutdown] Cleaning up...');
-    if (session) {
-      try { session.disconnect(); } catch { /* ignore */ }
-    }
+    try { session.disconnect(); } catch { /* ignore */ }
+    monitor.stop();
     if (capture) {
       try { capture.stop(); } catch { /* ignore */ }
     }
