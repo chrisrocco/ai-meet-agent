@@ -83,27 +83,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VDEV-01 | — | Pending |
-| VDEV-02 | — | Pending |
-| VDEV-03 | — | Pending |
-| AUDI-01 | — | Pending |
-| AUDI-02 | — | Pending |
-| AUDI-03 | — | Pending |
-| AUDI-04 | — | Pending |
-| AUDI-05 | — | Pending |
-| CONV-01 | — | Pending |
-| CONV-02 | — | Pending |
-| CONV-03 | — | Pending |
-| OPER-01 | — | Pending |
-| OPER-02 | — | Pending |
-| PLAT-01 | — | Pending |
-| PLAT-02 | — | Pending |
+| VDEV-01 | Phase 1 | Pending |
+| VDEV-02 | Phase 1 | Pending |
+| VDEV-03 | Phase 3 | Pending |
+| AUDI-01 | Phase 2 | Pending |
+| AUDI-02 | Phase 4 | Pending |
+| AUDI-03 | Phase 4 | Pending |
+| AUDI-04 | Phase 2 | Pending |
+| AUDI-05 | Phase 4 | Pending |
+| CONV-01 | Phase 4 | Pending |
+| CONV-02 | Phase 5 | Pending |
+| CONV-03 | Phase 5 | Pending |
+| OPER-01 | Phase 5 | Pending |
+| OPER-02 | Phase 5 | Pending |
+| PLAT-01 | Phase 1 | Pending |
+| PLAT-02 | Phase 1 | Pending |
 
 **Coverage:**
 - v1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-25*
-*Last updated: 2026-03-25 after initial definition*
+*Last updated: 2026-03-25 after roadmap creation*
