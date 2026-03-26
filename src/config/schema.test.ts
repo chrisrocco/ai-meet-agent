@@ -73,3 +73,51 @@ describe('loadConfig', () => {
     );
   });
 });
+
+describe('ConfigSchema persona defaults', () => {
+  it('provides persona defaults when parsing empty object', () => {
+    const cfg = ConfigSchema.parse({});
+    assert.equal(cfg.persona.name, 'AI Assistant');
+    assert.equal(cfg.persona.role, 'Meeting Participant');
+    assert.equal(cfg.persona.background, '');
+    assert.equal(cfg.persona.instructions, '');
+    assert.equal(cfg.persona.introduceOnStart, true);
+  });
+
+  it('merges partial persona config with defaults', () => {
+    const cfg = ConfigSchema.parse({
+      persona: { name: 'Bob', role: 'Developer' },
+    });
+    assert.equal(cfg.persona.name, 'Bob');
+    assert.equal(cfg.persona.role, 'Developer');
+    assert.equal(cfg.persona.background, '');
+    assert.equal(cfg.persona.instructions, '');
+    assert.equal(cfg.persona.introduceOnStart, true);
+  });
+});
+
+describe('ConfigSchema ai defaults', () => {
+  it('provides ai model default when parsing empty object', () => {
+    const cfg = ConfigSchema.parse({});
+    assert.equal(cfg.ai.model, 'gemini-2.5-flash-native-audio-preview-12-2025');
+  });
+
+  it('allows overriding ai model', () => {
+    const cfg = ConfigSchema.parse({ ai: { model: 'custom-model' } });
+    assert.equal(cfg.ai.model, 'custom-model');
+  });
+});
+
+describe('ConfigSchema existing fields unchanged', () => {
+  it('still parses device/audio/video config correctly', () => {
+    const cfg = ConfigSchema.parse({
+      devices: { camera: { label: 'Test Cam', videoNr: 5 } },
+      audio: { relayPort: 9999 },
+      video: { mjpegPort: 7777 },
+    });
+    assert.equal(cfg.devices.camera.label, 'Test Cam');
+    assert.equal(cfg.devices.camera.videoNr, 5);
+    assert.equal(cfg.audio.relayPort, 9999);
+    assert.equal(cfg.video.mjpegPort, 7777);
+  });
+});

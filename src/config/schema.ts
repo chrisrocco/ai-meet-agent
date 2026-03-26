@@ -22,6 +22,16 @@ export const ConfigSchema = z.object({
   video: z.object({
     mjpegPort: z.number().int().min(1024).max(65535).default(8085),
   }).default({}),
+  persona: z.object({
+    name: z.string().default('AI Assistant'),
+    role: z.string().default('Meeting Participant'),
+    background: z.string().default(''),
+    instructions: z.string().default(''),
+    introduceOnStart: z.boolean().default(true),
+  }).default({}),
+  ai: z.object({
+    model: z.string().default('gemini-2.5-flash-native-audio-preview-12-2025'),
+  }).default({}),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
