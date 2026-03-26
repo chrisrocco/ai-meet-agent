@@ -121,3 +121,52 @@ describe('ConfigSchema existing fields unchanged', () => {
     assert.equal(cfg.video.mjpegPort, 7777);
   });
 });
+
+describe('ConfigSchema full defaults', () => {
+  it('parse({}) returns valid config with all defaults populated', () => {
+    const cfg = ConfigSchema.parse({});
+    assert.equal(cfg.devices.camera.label, 'AI Meet Agent Camera');
+    assert.equal(cfg.devices.camera.videoNr, 10);
+    assert.equal(cfg.devices.mic.sinkName, 'ai_meet_mic');
+    assert.equal(cfg.devices.sink.sinkName, 'ai_meet_sink');
+    assert.equal(cfg.audio.relayPort, 19876);
+    assert.equal(cfg.video.mjpegPort, 8085);
+    assert.equal(cfg.persona.name, 'AI Assistant');
+    assert.equal(cfg.ai.model, 'gemini-2.5-flash-native-audio-preview-12-2025');
+    assert.equal(cfg.wsl2.captureDevice, 'CABLE Output (VB-Audio Virtual Cable)');
+  });
+});
+
+describe('parseCliArgs', async () => {
+  // Import from loader
+  const { parseCliArgs } = await import('./loader.js');
+
+  it('parses --config and --meeting flags', () => {
+    const result = parseCliArgs(['node', 'index.js', '--config', 'c.json', '--meeting', 'm.md']);
+    assert.equal(result.configPath, 'c.json');
+    assert.equal(result.meetingPath, 'm.md');
+  });
+
+  it('returns undefined for missing flags', () => {
+    const result = parseCliArgs(['node', 'index.js']);
+    assert.equal(result.configPath, undefined);
+    assert.equal(result.meetingPath, undefined);
+  });
+
+  it('parses --config only', () => {
+    const result = parseCliArgs(['node', 'index.js', '--config', 'custom.json']);
+    assert.equal(result.configPath, 'custom.json');
+    assert.equal(result.meetingPath, undefined);
+  });
+
+  it('parses --meeting only', () => {
+    const result = parseCliArgs(['node', 'index.js', '--meeting', 'agenda.md']);
+    assert.equal(result.configPath, undefined);
+    assert.equal(result.meetingPath, 'agenda.md');
+  });
+
+  it('ignores flags without values', () => {
+    const result = parseCliArgs(['node', 'index.js', '--config']);
+    assert.equal(result.configPath, undefined);
+  });
+});
