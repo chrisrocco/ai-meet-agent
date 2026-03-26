@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Static Video Feed** - Static placeholder image streams to virtual camera at consistent frame rate (completed 2026-03-26)
 - [x] **Phase 4: AI Integration** - Gemini Live WebSocket session receives audio chunks and returns AI audio responses (completed 2026-03-26)
 - [ ] **Phase 5: End-to-End Loop and Operator Experience** - Full bidirectional AI conversation works in a live Meet call with configurable persona and operator monitoring
-- [ ] **Phase 6: WSL2 Audio Relay Server** - TCP relay server bridges audio between WSL2 Node.js and VB-Cable on Windows
+- [x] **Phase 6: WSL2 Audio Relay Server** - TCP relay server bridges audio between WSL2 Node.js and VB-Cable on Windows (completed 2026-03-26)
 
 ## Phase Details
 
@@ -103,7 +103,7 @@ Note: Phase 3 depends only on Phase 1 and can be built concurrently with Phase 2
 | 3. Static Video Feed | 2/2 | Complete   | 2026-03-26 |
 | 4. AI Integration | 0/TBD | Complete    | 2026-03-26 |
 | 5. End-to-End Loop and Operator Experience | 0/TBD | Not started | - |
-| 6. WSL2 Audio Relay Server | 0/TBD | Not started | - |
+| 6. WSL2 Audio Relay Server | 3/3 | Complete   | 2026-03-26 |
 
 ### Phase 6: WSL2 Audio Relay Server
 **Goal**: TCP relay server on port 19876 bridges audio between WSL2 Node.js process and VB-Cable on Windows, completing the WSL2 audio path that Phase 2 capture/output clients expect
