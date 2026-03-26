@@ -1,7 +1,6 @@
 /**
  * AI Meet Agent — Main entry point
- * Starts virtual devices, audio pipeline, registers shutdown handlers, and runs until Ctrl+C.
- * Future phases add AI session and conversation logic here.
+ * Starts virtual devices, audio pipeline, AI session, registers shutdown handlers, and runs until Ctrl+C.
  */
 import { loadConfig } from './config/loader.js';
 import { DeviceManager } from './devices/index.js';
@@ -10,6 +9,7 @@ import { createAudioCapture, createAudioOutput } from './audio/index.js';
 import type { AudioCapture, AudioOutput } from './audio/index.js';
 import { createVideoFeed, DEFAULT_PLACEHOLDER_PATH } from './video/index.js';
 import type { VideoFeed } from './video/index.js';
+import { GeminiLiveSession, buildSystemPrompt } from './ai/index.js';
 
 async function main(): Promise<void> {
   console.log('=== AI Meet Agent ===');
@@ -50,13 +50,15 @@ async function main(): Promise<void> {
   // Start audio pipeline
   let capture: AudioCapture | null = null;
   let output: AudioOutput | null = null;
+  let outputStream: import('stream').Writable | null = null;
+  let captureStream: import('stream').Readable | null = null;
 
   try {
     capture = createAudioCapture(status.audioSinkName, platform);
     output = createAudioOutput(status.audioMicName, platform);
 
-    const captureStream = capture.start();
-    output.start();
+    captureStream = capture.start();
+    outputStream = output.start();
 
     // Log RMS levels for visibility ("audio is flowing")
     capture.on('level', (rms: number) => {
@@ -74,13 +76,68 @@ async function main(): Promise<void> {
       console.warn(`[Output] Error: ${err.message}`);
     });
 
-    // Consume capture stream (discard for now — Phase 4 connects to AI API)
-    captureStream.on('data', () => { /* Phase 4 pipes this to Gemini Live API */ });
-
     console.log('\n[AudioPipeline] Capture and output streams started.');
   } catch (err) {
     console.warn(`[AudioPipeline] Could not start audio: ${(err as Error).message}`);
     console.warn('[AudioPipeline] Audio pipeline will not be active this session.');
+  }
+
+  // AI Session
+  let session: GeminiLiveSession | null = null;
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    console.warn('\n[AI] GEMINI_API_KEY not set — AI session disabled.');
+    console.warn('[AI] Set GEMINI_API_KEY environment variable to enable AI responses.');
+  } else if (!captureStream || !outputStream) {
+    console.warn('\n[AI] Audio pipeline not available — AI session disabled.');
+  } else {
+    const systemPrompt = buildSystemPrompt(config.persona);
+    session = new GeminiLiveSession({
+      apiKey,
+      model: config.ai.model,
+      systemPrompt,
+      maxRetries: 5,
+    });
+
+    // Wire AI audio output to virtual mic
+    session.on('audio', (pcm16k: Buffer) => {
+      if (outputStream) {
+        outputStream.write(pcm16k);
+      }
+    });
+
+    // Wire capture to AI input
+    captureStream.on('data', (chunk: Buffer) => {
+      if (session) {
+        session.sendAudio(chunk);
+      }
+    });
+
+    // Session event logging
+    session.on('connected', () => {
+      console.log('[AI] Connected to Gemini Live API');
+      console.log(`[AI] Persona: ${config.persona.name} (${config.persona.role})`);
+    });
+    session.on('disconnected', () => console.log('[AI] Disconnected'));
+    session.on('error', (err: Error) => {
+      console.error(`[AI] Error: ${err.message}`);
+    });
+    session.on('latency', (ms: number) => {
+      if (ms > 2000) {
+        console.warn(`[AI] High latency: ${ms}ms (threshold: 2000ms)`);
+      }
+    });
+
+    // Start connection
+    console.log(`\n[AI] Session configured: ${config.ai.model}`);
+    console.log(`[AI] Persona: ${config.persona.name} (${config.persona.role})`);
+    try {
+      await session.connect();
+    } catch (err) {
+      console.warn(`[AI] Could not connect: ${(err as Error).message}`);
+      console.warn('[AI] AI session will not be active. Retrying may occur automatically.');
+    }
   }
 
   // Start video feed
@@ -109,9 +166,12 @@ async function main(): Promise<void> {
 
   console.log('\nPress Ctrl+C to stop and clean up.');
 
-  // Shutdown handler: stop audio first, then devices
+  // Shutdown handler: AI session first, then audio, video, devices
   const shutdown = () => {
     console.log('\n[Shutdown] Cleaning up...');
+    if (session) {
+      try { session.disconnect(); } catch { /* ignore */ }
+    }
     if (capture) {
       try { capture.stop(); } catch { /* ignore */ }
     }
