@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-03-25)
 
 ## Current Position
 
-Phase: 3 of 5 (Static Video Feed) — COMPLETE
-Plan: 2 of 2 in Phase 3 complete
-Status: Phase 3 complete — video module built and wired into main()
-Last activity: 2026-03-26 — Plan 03-02 complete (video feed integrated into main(), WSL2 OBS setup docs)
+Phase: 6 of 6 (WSL2 Audio Relay Server) — IN PROGRESS
+Plan: 1 of 2 in Phase 6 complete
+Status: Plan 06-01 complete — WslAudioRelayServer class and config schema implemented
+Last activity: 2026-03-25 — Plan 06-01 complete (TCP relay server with capture/output bridge processes, WSL2 config schema)
 
-Progress: [██████░░░░] 60%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -97,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26
-Stopped at: Completed 03-static-video-feed plan 03-02 (video feed wired into main(), WSL2 OBS setup docs)
+Last session: 2026-03-25
+Stopped at: Completed 06-wsl2-audio-relay plan 06-01 (TCP relay server class + config schema)
 Resume file: None
