@@ -87,7 +87,12 @@ Plans:
   3. The AI references earlier parts of the conversation correctly — it does not forget context from the beginning of a call
   4. The operator can hear both Meet participants and the AI's responses in their local audio environment without joining the call as a second participant
   5. A live transcript display shows participant speech and AI responses as the call progresses
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Meeting context loader, CLI arg parsing, system prompt extension
+- [ ] 05-02-PLAN.md — Transcript writer, Gemini TEXT+AUDIO modality, text event emission
+- [ ] 05-03-PLAN.md — Operator audio monitor, full end-to-end integration, critical path enforcement
 
 ## Progress
 
@@ -102,7 +107,7 @@ Note: Phase 3 depends only on Phase 1 and can be built concurrently with Phase 2
 | 2. Audio Pipeline | 0/TBD | Complete    | 2026-03-26 |
 | 3. Static Video Feed | 2/2 | Complete   | 2026-03-26 |
 | 4. AI Integration | 0/TBD | Complete    | 2026-03-26 |
-| 5. End-to-End Loop and Operator Experience | 0/TBD | Not started | - |
+| 5. End-to-End Loop and Operator Experience | 0/3 | Planned | - |
 | 6. WSL2 Audio Relay Server | 3/3 | Complete   | 2026-03-26 |
 
 ### Phase 6: WSL2 Audio Relay Server
