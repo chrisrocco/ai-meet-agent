@@ -8,6 +8,7 @@ export type GeminiSessionState = 'disconnected' | 'connecting' | 'connected' | '
 /** Events emitted by GeminiLiveSession. */
 export interface GeminiSessionEvents {
   audio: (pcm16k: Buffer) => void;
+  text: (text: string) => void;
   connected: () => void;
   disconnected: () => void;
   error: (err: Error) => void;

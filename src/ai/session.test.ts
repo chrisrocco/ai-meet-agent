@@ -37,7 +37,7 @@ describe('GeminiLiveSession', () => {
     mockAI = createMockAI(mockSession);
   });
 
-  it('connect() calls ai.live.connect with correct config', async () => {
+  it('connect() calls ai.live.connect with correct config including TEXT+AUDIO', async () => {
     session = new GeminiLiveSession({
       apiKey: 'test-key',
       model: 'gemini-test-model',
@@ -50,7 +50,7 @@ describe('GeminiLiveSession', () => {
     assert.equal(mockAI.live.connect.mock.callCount(), 1);
     const callArgs = mockAI.live.connect.mock.calls[0].arguments[0];
     assert.equal(callArgs.model, 'gemini-test-model');
-    assert.deepEqual(callArgs.config.responseModalities, ['AUDIO']);
+    assert.deepEqual(callArgs.config.responseModalities, ['AUDIO', 'TEXT']);
     assert.ok(callArgs.config.systemInstruction.parts[0].text.includes('You are a test bot.'));
   });
 
@@ -183,5 +183,75 @@ describe('GeminiLiveSession', () => {
     const stats = session.getLatencyStats();
     assert.equal(stats.count, 0);
     assert.equal(stats.lastMs, 0);
+  });
+
+  it('emits text event when message contains text part', async () => {
+    session = new GeminiLiveSession({
+      apiKey: 'test-key',
+      model: 'test-model',
+      systemPrompt: 'Test',
+      maxRetries: 1,
+    }, mockAI as any);
+
+    await session.connect();
+
+    const texts: string[] = [];
+    session.on('text', (text: string) => texts.push(text));
+
+    // Get the onmessage callback
+    const callArgs = mockAI.live.connect.mock.calls[0].arguments[0];
+    const onmessage = callArgs.callbacks.onmessage;
+
+    // Send a text-only message
+    onmessage({
+      serverContent: {
+        modelTurn: {
+          parts: [{ text: 'Hello from AI' }],
+        },
+      },
+    });
+
+    assert.equal(texts.length, 1);
+    assert.equal(texts[0], 'Hello from AI');
+  });
+
+  it('emits both text and audio events for message with both parts', async () => {
+    session = new GeminiLiveSession({
+      apiKey: 'test-key',
+      model: 'test-model',
+      systemPrompt: 'Test',
+      maxRetries: 1,
+    }, mockAI as any);
+
+    await session.connect();
+
+    const texts: string[] = [];
+    const audioChunks: Buffer[] = [];
+    session.on('text', (text: string) => texts.push(text));
+    session.on('audio', (buf: Buffer) => audioChunks.push(buf));
+
+    const callArgs = mockAI.live.connect.mock.calls[0].arguments[0];
+    const onmessage = callArgs.callbacks.onmessage;
+
+    // Create a tiny 24kHz PCM buffer (must be even number of bytes for 16-bit samples)
+    // 6 bytes = 3 samples at 24kHz, downsampled to 2 samples at 16kHz = 4 bytes
+    const audioBuf = Buffer.from([0x00, 0x01, 0x00, 0x02, 0x00, 0x03]);
+    const audioBase64 = audioBuf.toString('base64');
+
+    onmessage({
+      serverContent: {
+        modelTurn: {
+          parts: [
+            { inlineData: { data: audioBase64 } },
+            { text: 'AI response text' },
+          ],
+        },
+      },
+    });
+
+    assert.equal(texts.length, 1);
+    assert.equal(texts[0], 'AI response text');
+    assert.equal(audioChunks.length, 1);
+    assert.ok(audioChunks[0].length > 0);
   });
 });

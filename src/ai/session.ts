@@ -17,6 +17,7 @@ export interface GeminiLiveSessionConfig {
  *
  * Events:
  * - 'audio' (Buffer) — 16kHz PCM audio from AI response
+ * - 'text' (string) — AI response text from TEXT modality
  * - 'connected' — session connected
  * - 'disconnected' — session disconnected
  * - 'error' (Error) — fatal error (permanent or retries exhausted)
@@ -55,7 +56,7 @@ export class GeminiLiveSession extends EventEmitter {
       this.session = await this.ai.live.connect({
         model: this.config.model,
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalities: [Modality.AUDIO, Modality.TEXT],
           systemInstruction: {
             parts: [{ text: this.config.systemPrompt }],
           },
@@ -149,6 +150,10 @@ export class GeminiLiveSession extends EventEmitter {
 
         this.emit('audio', pcm16k);
       }
+
+      if (part?.text) {
+        this.emit('text', part.text);
+      }
     }
   }
 
@@ -193,7 +198,7 @@ export class GeminiLiveSession extends EventEmitter {
         this.session = await this.ai.live.connect({
           model: this.config.model,
           config: {
-            responseModalities: [Modality.AUDIO],
+            responseModalities: [Modality.AUDIO, Modality.TEXT],
             systemInstruction: {
               parts: [{ text: this.config.systemPrompt }],
             },
