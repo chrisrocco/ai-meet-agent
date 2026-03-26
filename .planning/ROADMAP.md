@@ -58,7 +58,11 @@ Plans:
   1. Joining a Google Meet and selecting the virtual camera displays the placeholder image as the video feed (not a black screen or frozen frame indicator)
   2. The video feed continues without stutter or dropout for at least 10 minutes without intervention
   3. The ffmpeg subprocess is started and stopped cleanly by the orchestrator (no zombie processes on SIGINT)
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Video module: types, NativeVideoFeed (v4l2), Wsl2VideoFeed (MJPEG), factory, config, placeholder
+- [ ] 03-02-PLAN.md — Integration into main() with lifecycle management, WSL2 OBS docs, human verification
 
 ### Phase 4: AI Integration
 **Goal**: Audio chunks from the capture stream are sent to Gemini Live API over a persistent WebSocket, and AI audio responses are received back — with correct audio format, session reconnection logic, and latency instrumentation in place
