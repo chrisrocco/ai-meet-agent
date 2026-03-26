@@ -84,12 +84,16 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Roadmap Evolution
+
+- Phase 6 added: WSL2 Audio Relay Server — TCP relay bridging WSL2 Node.js ↔ VB-Cable on Windows (gap from Phase 2 client code expecting relay that was never built)
+
 ### Blockers/Concerns
 
 - [Phase 1 — RESOLVED]: v4l2loopback confirmed absent from WSL2 kernel — PATH B (OBS + VB-Cable) is the WSL2 device path. Windows bridges must be set up manually per scripts/setup-wsl2-windows.md.
-- [Phase 2]: Node.js audio bridge from WSL2 to VB-Cable CABLE Input needs to be designed and implemented.
+- [Phase 2]: Node.js audio bridge from WSL2 to VB-Cable CABLE Input needs to be designed and implemented. → Scheduled as Phase 6.
 - [Phase 3]: Node.js video bridge from WSL2 to OBS Virtual Camera needs to be designed and implemented.
-- [Phase 4]: Gemini Live API (`@google/genai`) — package name, Node.js server-side support, audio format requirements, and session limits need verification against current docs before coding starts.
+- [Phase 4 — RESOLVED]: Gemini Live API (`@google/genai`) — verified and implemented in Phase 4.
 
 ## Session Continuity
 

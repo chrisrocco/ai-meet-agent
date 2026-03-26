@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Static Video Feed** - Static placeholder image streams to virtual camera at consistent frame rate (completed 2026-03-26)
 - [x] **Phase 4: AI Integration** - Gemini Live WebSocket session receives audio chunks and returns AI audio responses (completed 2026-03-26)
 - [ ] **Phase 5: End-to-End Loop and Operator Experience** - Full bidirectional AI conversation works in a live Meet call with configurable persona and operator monitoring
+- [ ] **Phase 6: WSL2 Audio Relay Server** - TCP relay server bridges audio between WSL2 Node.js and VB-Cable on Windows
 
 ## Phase Details
 
@@ -91,7 +92,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 Note: Phase 3 depends only on Phase 1 and can be built concurrently with Phase 2 if bandwidth allows, but for sequential execution it follows Phase 2.
 
@@ -102,3 +103,19 @@ Note: Phase 3 depends only on Phase 1 and can be built concurrently with Phase 2
 | 3. Static Video Feed | 2/2 | Complete   | 2026-03-26 |
 | 4. AI Integration | 0/TBD | Complete    | 2026-03-26 |
 | 5. End-to-End Loop and Operator Experience | 0/TBD | Not started | - |
+| 6. WSL2 Audio Relay Server | 0/TBD | Not started | - |
+
+### Phase 6: WSL2 Audio Relay Server
+**Goal**: TCP relay server on port 19876 bridges audio between WSL2 Node.js process and VB-Cable on Windows, completing the WSL2 audio path that Phase 2 capture/output clients expect
+**Depends on**: Phase 5
+**Requirements**: PLAT-02
+**Success Criteria** (what must be TRUE):
+  1. A TCP server listens on port 19876 inside WSL2 and accepts connections from Wsl2AudioCapture and Wsl2AudioOutput clients
+  2. Audio captured from Google Meet (via Windows audio routing) is received by the relay and forwarded to the capture client as PCM frames
+  3. PCM audio written by the output client is forwarded by the relay to VB-Cable's CABLE Input on Windows
+  4. The relay starts automatically as part of `npm run dev` — no separate process needed
+  5. Audio round-trip through the relay adds less than 50ms of latency
+**Plans**: TBD
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 6 to break down)
