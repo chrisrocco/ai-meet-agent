@@ -20,11 +20,11 @@ async function main(): Promise<void> {
   console.log('');
 
   const config = loadConfig();
-  const manager = new DeviceManager(config);
+  const manager = new DeviceManager(config, platform);
 
   let status;
   try {
-    status = manager.startup({ startTestPattern: true });
+    status = manager.startup({ startTestPattern: platform !== 'wsl2' });
   } catch (err) {
     // Prerequisites failed — DeviceManager already printed fix instructions
     console.error(`\n[FAIL] ${(err as Error).message}`);
@@ -37,11 +37,18 @@ async function main(): Promise<void> {
   console.log(`  Virtual mic:    ${status.audioMicName}`);
   console.log(`  Test pattern:   ${status.testPatternRunning ? 'running' : 'not running'}`);
 
-  console.log('\nRunning test pattern for 5 seconds...');
-  console.log('To verify camera: open chrome://settings/content/camera — "AI Meet Agent Camera" should appear.');
-  console.log('To verify mic:    open chrome://settings/content/microphone — "AI Meet Agent Mic" should appear.');
+  if (platform === 'wsl2') {
+    console.log('\nWSL2 detected — virtual devices are Windows-side:');
+    console.log('  Camera: Use OBS Virtual Camera (Windows)');
+    console.log('  Audio:  Use VB-Cable (Windows)');
+    console.log('See: docs/wsl2-setup.md for setup instructions.');
+  } else {
+    console.log('\nRunning test pattern for 5 seconds...');
+    console.log('To verify camera: open chrome://settings/content/camera — "AI Meet Agent Camera" should appear.');
+    console.log('To verify mic:    open chrome://settings/content/microphone — "AI Meet Agent Mic" should appear.');
 
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 
   console.log('\nCleaning up...');
   manager.shutdown();
