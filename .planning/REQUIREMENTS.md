@@ -9,8 +9,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Virtual Devices
 
-- [ ] **VDEV-01**: Virtual camera device appears as selectable webcam in browser (e.g. "Mock Input")
-- [ ] **VDEV-02**: Virtual microphone device appears as selectable mic in browser (e.g. "Mock Input")
+- [x] **VDEV-01**: Virtual camera device appears as selectable webcam in browser (e.g. "Mock Input")
+- [x] **VDEV-02**: Virtual microphone device appears as selectable mic in browser (e.g. "Mock Input")
 - [ ] **VDEV-03**: Static placeholder image fed through virtual camera as video stream
 
 ### Audio Pipeline

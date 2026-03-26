@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-03-25)
 ## Current Position
 
 Phase: 1 of 5 (Virtual Device Setup)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-03-26 — Plan 01-02 complete (native Linux device layer: prerequisites, virtual camera, virtual audio, DeviceManager)
+Last activity: 2026-03-26 — Plan 01-03 complete (setup script + test-devices CLI + main index entry point)
 
-Progress: [██░░░░░░░░] 10%
+Progress: [███░░░░░░░] 15%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
+- Total plans completed: 3
 - Average duration: 2 min
-- Total execution time: 0.07 hours
+- Total execution time: 0.10 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-virtual-device-setup | 2 | 4 min | 2 min |
+| 01-virtual-device-setup | 3 | 5 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (2 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (2 min), 01-03 (1 min)
 - Trend: steady
 
 *Updated after each plan completion*
@@ -50,6 +50,8 @@ Recent decisions affecting current work:
 - [01-02]: Added declaration: true to tsconfig.json — .d.ts files required for TypeScript consumers importing device modules.
 - [01-02]: DeviceManager.startup() throws on prereq failure — callers must handle failure path explicitly.
 - [01-02]: Virtual mic uses media.class=Audio/Source/Virtual so Chrome exposes it as microphone input, not monitor.
+- [01-03]: test-devices.ts calls process.exit(0) explicitly after shutdown() — required because the 5s setTimeout keeps the event loop alive.
+- [01-03]: src/index.ts keep-alive uses unresolved Promise<void>; SIGINT/SIGTERM handlers from registerShutdownHandlers() are the sole exit path.
 
 ### Pending Todos
 
@@ -63,5 +65,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-26
-Stopped at: Completed 01-virtual-device-setup plan 01-02 (native Linux device layer: prerequisites, virtual camera, virtual audio, DeviceManager)
+Stopped at: Completed 01-virtual-device-setup plan 01-03 (setup script, test-devices CLI, main index entry point)
 Resume file: None
