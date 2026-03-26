@@ -24,13 +24,13 @@ Requirements for initial release. Each maps to roadmap phases.
 ### AI Conversation
 
 - [x] **CONV-01**: Configurable persona via system prompt (name, role, background, meeting context)
-- [ ] **CONV-02**: Per-meeting context injection (agenda, attendee bios prepended to system prompt)
-- [ ] **CONV-03**: Conversation memory within session — AI remembers earlier parts of the call
+- [x] **CONV-02**: Per-meeting context injection (agenda, attendee bios prepended to system prompt)
+- [x] **CONV-03**: Conversation memory within session — AI remembers earlier parts of the call
 
 ### Operator Experience
 
-- [ ] **OPER-01**: Operator can monitor the call from behind the browser (hear participants + AI)
-- [ ] **OPER-02**: Live transcript display showing what participants said and what AI responded
+- [x] **OPER-01**: Operator can monitor the call from behind the browser (hear participants + AI)
+- [x] **OPER-02**: Live transcript display showing what participants said and what AI responded
 
 ### Platform
 
@@ -92,10 +92,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUDI-04 | Phase 2 | Complete |
 | AUDI-05 | Phase 4 | Complete |
 | CONV-01 | Phase 4 | Complete |
-| CONV-02 | Phase 5 | Pending |
-| CONV-03 | Phase 5 | Pending |
-| OPER-01 | Phase 5 | Pending |
-| OPER-02 | Phase 5 | Pending |
+| CONV-02 | Phase 5 | Complete |
+| CONV-03 | Phase 5 | Complete |
+| OPER-01 | Phase 5 | Complete |
+| OPER-02 | Phase 5 | Complete |
 | PLAT-01 | Phase 1 | Complete |
 | PLAT-02 | Phase 1 | Complete |
 
