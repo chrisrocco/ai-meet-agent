@@ -58,7 +58,7 @@ Plans:
   1. Joining a Google Meet and selecting the virtual camera displays the placeholder image as the video feed (not a black screen or frozen frame indicator)
   2. The video feed continues without stutter or dropout for at least 10 minutes without intervention
   3. The ffmpeg subprocess is started and stopped cleanly by the orchestrator (no zombie processes on SIGINT)
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — Video module: types, NativeVideoFeed (v4l2), Wsl2VideoFeed (MJPEG), factory, config, placeholder
@@ -99,6 +99,6 @@ Note: Phase 3 depends only on Phase 1 and can be built concurrently with Phase 2
 |-------|----------------|--------|-----------|
 | 1. Virtual Device Setup | 4/4 | Complete    | 2026-03-26 |
 | 2. Audio Pipeline | 0/TBD | Complete    | 2026-03-26 |
-| 3. Static Video Feed | 0/TBD | Not started | - |
+| 3. Static Video Feed | 1/2 | In Progress|  |
 | 4. AI Integration | 0/TBD | Not started | - |
 | 5. End-to-End Loop and Operator Experience | 0/TBD | Not started | - |

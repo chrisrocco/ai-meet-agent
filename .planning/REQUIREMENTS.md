@@ -11,7 +11,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **VDEV-01**: Virtual camera device appears as selectable webcam in browser (e.g. "Mock Input")
 - [x] **VDEV-02**: Virtual microphone device appears as selectable mic in browser (e.g. "Mock Input")
-- [ ] **VDEV-03**: Static placeholder image fed through virtual camera as video stream
+- [x] **VDEV-03**: Static placeholder image fed through virtual camera as video stream
 
 ### Audio Pipeline
 
@@ -85,7 +85,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | VDEV-01 | Phase 1 | In Progress (device layer built; browser verification in plan 04) |
 | VDEV-02 | Phase 1 | In Progress (device layer built; browser verification in plan 04) |
-| VDEV-03 | Phase 3 | Pending |
+| VDEV-03 | Phase 3 | Complete |
 | AUDI-01 | Phase 2 | Complete |
 | AUDI-02 | Phase 4 | Pending |
 | AUDI-03 | Phase 4 | Pending |

@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-26T03:37:27.717Z"
+last_updated: "2026-03-26T04:13:36Z"
 progress:
-  total_phases: 2
+  total_phases: 5
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Bidirectional realtime audio conversation through a Google Meet call — someone speaks, the AI twin hears and responds naturally.
-**Current focus:** Phase 2 — Audio Pipeline
+**Current focus:** Phase 3 — Static Video Feed
 
 ## Current Position
 
-Phase: 1 of 5 (Virtual Device Setup) — COMPLETE
-Plan: 5 of 5 in Phase 1 (all plans complete)
-Status: Phase 1 complete, ready for Phase 2
-Last activity: 2026-03-26 — Plan 01-05 complete (WSL2 platform branching in DeviceManager, test-devices.ts, index.ts)
+Phase: 3 of 5 (Static Video Feed) — IN PROGRESS
+Plan: 1 of 1 in Phase 3 complete
+Status: Phase 3 Plan 01 complete, video module ready for integration
+Last activity: 2026-03-26 — Plan 03-01 complete (VideoFeed module: types, NativeVideoFeed, Wsl2VideoFeed, factory, config schema)
 
-Progress: [████░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [████░░░░░░] 20%
 
 *Updated after each plan completion*
 | Phase 01-virtual-device-setup P05 | 2 | 2 tasks | 3 files |
+| Phase 03-static-video-feed P01 | 2 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,10 @@ Recent decisions affecting current work:
 - [Phase 01-05]: DeviceManager constructor accepts optional Platform parameter for dependency injection, defaults to detectPlatform()
 - [Phase 01-05]: WSL2 startup path does NOT throw — returns DeviceStatus with ok:true prerequisites and Windows placeholder device names
 - [Phase 01-05]: DeviceStatus.wsl2Status is optional (undefined on native Linux) rather than a discriminated union for caller simplicity
+- [Phase 03-01]: Placeholder JPEG created as minimal 1x1 JPEG (334 bytes) using Node.js — ffmpeg unavailable in build environment; ffmpeg scales at runtime with scale/pad filter
+- [Phase 03-01]: MJPEG broadcast uses manual JPEG frame extraction (FF D8...FF D9 markers) rather than mpjpeg muxer — more portable across ffmpeg builds
+- [Phase 03-01]: NativeVideoFeed uses detached:true + process.kill(-pid, 'SIGTERM') to kill entire process group, preventing orphan ffmpeg processes
+- [Phase 03-01]: Wsl2VideoFeed cleanup uses taskkill /F /T /PID to kill Windows process tree (powershell.exe + child ffmpeg.exe)
 
 ### Pending Todos
 
@@ -85,5 +90,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-26
-Stopped at: Completed 01-virtual-device-setup plan 01-05 (WSL2 platform branching in DeviceManager, test-devices.ts, index.ts) — Phase 1 COMPLETE
+Stopped at: Completed 03-static-video-feed plan 03-01 (VideoFeed module: types, NativeVideoFeed, Wsl2VideoFeed, factory, config schema)
 Resume file: None
