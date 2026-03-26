@@ -19,6 +19,12 @@ export const ConfigSchema = z.object({
   audio: z.object({
     relayPort: z.number().int().min(1024).max(65535).default(19876),
   }).default({}),
+  wsl2: z.object({
+    captureDevice: z.string().default('CABLE Output (VB-Audio Virtual Cable)'),
+    outputDeviceIndex: z.number().int().min(0).default(0),
+    ffmpegPath: z.string().default('ffmpeg.exe'),
+    ffplayPath: z.string().default('ffplay.exe'),
+  }).default({}),
   video: z.object({
     mjpegPort: z.number().int().min(1024).max(65535).default(8085),
   }).default({}),
