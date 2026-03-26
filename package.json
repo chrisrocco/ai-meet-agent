@@ -8,8 +8,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node --esm src/index.ts",
-    "test-devices": "ts-node --esm src/cli/test-devices.ts"
+    "dev": "tsx src/index.ts",
+    "test": "tsx --test src/**/*.test.ts",
+    "test-devices": "tsx src/cli/test-devices.ts"
   },
   "dependencies": {
     "zod": "^3.23.8",
