@@ -34,8 +34,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Platform
 
-- [ ] **PLAT-01**: Works on Linux (native) with PulseAudio/PipeWire and v4l2loopback
-- [ ] **PLAT-02**: Works on Linux (WSL2) with appropriate device routing for the environment
+- [x] **PLAT-01**: Works on Linux (native) with PulseAudio/PipeWire and v4l2loopback
+- [x] **PLAT-02**: Works on Linux (WSL2) with appropriate device routing for the environment
 
 ## v2 Requirements
 
@@ -96,8 +96,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONV-03 | Phase 5 | Pending |
 | OPER-01 | Phase 5 | Pending |
 | OPER-02 | Phase 5 | Pending |
-| PLAT-01 | Phase 1 | Pending |
-| PLAT-02 | Phase 1 | Pending |
+| PLAT-01 | Phase 1 | Complete |
+| PLAT-02 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 15 total
