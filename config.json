@@ -1,0 +1,16 @@
+{
+  "devices": {
+    "camera": {
+      "label": "AI Meet Agent Camera",
+      "videoNr": 10
+    },
+    "mic": {
+      "label": "AI Meet Agent Mic",
+      "sinkName": "ai_meet_mic"
+    },
+    "sink": {
+      "label": "AI Meet Agent Sink",
+      "sinkName": "ai_meet_sink"
+    }
+  }
+}
