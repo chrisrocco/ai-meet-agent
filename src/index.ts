@@ -1,11 +1,13 @@
 /**
  * AI Meet Agent — Main entry point
- * Starts virtual devices, registers shutdown handlers, and runs until Ctrl+C.
- * Future phases will wire in audio pipeline and AI session here.
+ * Starts virtual devices, audio pipeline, registers shutdown handlers, and runs until Ctrl+C.
+ * Future phases add AI session and conversation logic here.
  */
 import { loadConfig } from './config/loader.js';
 import { DeviceManager } from './devices/index.js';
 import { detectPlatform } from './platform/detect.js';
+import { createAudioCapture, createAudioOutput } from './audio/index.js';
+import type { AudioCapture, AudioOutput } from './audio/index.js';
 
 async function main(): Promise<void> {
   console.log('=== AI Meet Agent ===');
@@ -23,7 +25,6 @@ async function main(): Promise<void> {
   console.log('');
 
   const manager = new DeviceManager(config, platform);
-  manager.registerShutdownHandlers();
 
   let status;
   try {
@@ -43,10 +44,57 @@ async function main(): Promise<void> {
     console.log(`  Sink:   ${status.audioSinkName}`);
     console.log(`  Mic:    ${status.audioMicName}`);
   }
-  console.log('\nPress Ctrl+C to stop and clean up devices.');
 
-  // Keep alive — future phases add audio pipeline and AI session here
-  await new Promise<void>(() => { /* blocked until SIGINT/SIGTERM */ });
+  // Start audio pipeline
+  let capture: AudioCapture | null = null;
+  let output: AudioOutput | null = null;
+
+  try {
+    capture = createAudioCapture(status.audioSinkName, platform);
+    output = createAudioOutput(status.audioMicName, platform);
+
+    const captureStream = capture.start();
+    output.start();
+
+    // Log RMS levels for visibility ("audio is flowing")
+    capture.on('level', (rms: number) => {
+      if (rms > 0.01) console.log(`[Capture] Audio level: ${(rms * 100).toFixed(1)}%`);
+    });
+    output.on('level', (rms: number) => {
+      if (rms > 0.01) console.log(`[Output] Audio level: ${(rms * 100).toFixed(1)}%`);
+    });
+
+    capture.on('reconnecting', () => console.log('[Capture] Reconnecting...'));
+
+    // Consume capture stream (discard for now — Phase 4 connects to AI API)
+    captureStream.on('data', () => { /* Phase 4 pipes this to Gemini Live API */ });
+
+    console.log('\n[AudioPipeline] Capture and output streams started.');
+  } catch (err) {
+    console.warn(`[AudioPipeline] Could not start audio: ${(err as Error).message}`);
+    console.warn('[AudioPipeline] Audio pipeline will not be active this session.');
+  }
+
+  console.log('\nPress Ctrl+C to stop and clean up.');
+
+  // Shutdown handler: stop audio first, then devices
+  const shutdown = () => {
+    console.log('\n[Shutdown] Cleaning up...');
+    if (capture) {
+      try { capture.stop(); } catch { /* ignore */ }
+    }
+    if (output) {
+      try { output.stop(); } catch { /* ignore */ }
+    }
+    manager.shutdown();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  // Keep alive — blocked until SIGINT/SIGTERM
+  await new Promise<void>(() => {});
 }
 
 main().catch((err) => {

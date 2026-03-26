@@ -15,6 +15,9 @@ export const ConfigSchema = z.object({
       sinkName: z.string().default('ai_meet_sink'),
     }).default({}),
   }).default({}),
+  audio: z.object({
+    relayPort: z.number().int().min(1024).max(65535).default(19876),
+  }).default({}),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
