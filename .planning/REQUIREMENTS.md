@@ -16,14 +16,14 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Audio Pipeline
 
 - [x] **AUDI-01**: Capture incoming audio from Google Meet participants via virtual audio routing
-- [ ] **AUDI-02**: Stream captured audio to Google AI API in realtime (chunked PCM/WebSocket)
-- [ ] **AUDI-03**: Receive AI-generated audio responses and play through virtual microphone into Meet
+- [x] **AUDI-02**: Stream captured audio to Google AI API in realtime (chunked PCM/WebSocket)
+- [x] **AUDI-03**: Receive AI-generated audio responses and play through virtual microphone into Meet
 - [x] **AUDI-04**: Echo cancellation via architectural sink isolation — AI output does not loop back into capture path
-- [ ] **AUDI-05**: Low-latency audio round-trip under 2 seconds for conversational feel
+- [x] **AUDI-05**: Low-latency audio round-trip under 2 seconds for conversational feel
 
 ### AI Conversation
 
-- [ ] **CONV-01**: Configurable persona via system prompt (name, role, background, meeting context)
+- [x] **CONV-01**: Configurable persona via system prompt (name, role, background, meeting context)
 - [ ] **CONV-02**: Per-meeting context injection (agenda, attendee bios prepended to system prompt)
 - [ ] **CONV-03**: Conversation memory within session — AI remembers earlier parts of the call
 
@@ -87,11 +87,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VDEV-02 | Phase 1 | In Progress (device layer built; browser verification in plan 04) |
 | VDEV-03 | Phase 3 | Complete |
 | AUDI-01 | Phase 2 | Complete |
-| AUDI-02 | Phase 4 | Pending |
-| AUDI-03 | Phase 4 | Pending |
+| AUDI-02 | Phase 4 | Complete |
+| AUDI-03 | Phase 4 | Complete |
 | AUDI-04 | Phase 2 | Complete |
-| AUDI-05 | Phase 4 | Pending |
-| CONV-01 | Phase 4 | Pending |
+| AUDI-05 | Phase 4 | Complete |
+| CONV-01 | Phase 4 | Complete |
 | CONV-02 | Phase 5 | Pending |
 | CONV-03 | Phase 5 | Pending |
 | OPER-01 | Phase 5 | Pending |
