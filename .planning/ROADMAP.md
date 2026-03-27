@@ -160,7 +160,11 @@ Plans:
   1. Running `ai-meet start` without `ffmpeg` installed prints a clear message naming the missing dependency and the exact install command to fix it — not a Node.js stack trace
   2. Providing a config file with a missing or invalid field prints the field name and expected value/type — not a raw Zod error dump
   3. An AI session failure (e.g. missing API key, network drop) exits with a clear message and non-zero exit code; a video feed failure (non-critical) logs a warning and the session continues without video
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Error handling: Zod field-level formatting, DeviceError in DeviceManager, AgentError catch in all CLI commands
+- [ ] 09-02-PLAN.md — Distribution: README, LICENSE, .npmignore, config.example.json, package.json metadata
 
 ## Progress
 
@@ -178,4 +182,4 @@ v1.1: 7 → 8 → 9
 | 6. WSL2 Audio Relay Server | 3/3 | Complete | 2026-03-26 |
 | 7. Foundations | 0/3 | Not started | - |
 | 8. CLI Entry Point and Subcommands | 0/TBD | Not started | - |
-| 9. Error Handling and Distribution Readiness | 0/TBD | Not started | - |
+| 9. Error Handling and Distribution Readiness | 0/2 | Not started | - |
