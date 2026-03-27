@@ -56,7 +56,8 @@ export class GeminiLiveSession extends EventEmitter {
       this.session = await this.ai.live.connect({
         model: this.config.model,
         config: {
-          responseModalities: [Modality.AUDIO, Modality.TEXT],
+          responseModalities: [Modality.AUDIO],
+          outputAudioTranscription: {},
           systemInstruction: {
             parts: [{ text: this.config.systemPrompt }],
           },
@@ -133,6 +134,12 @@ export class GeminiLiveSession extends EventEmitter {
 
   /** Handle incoming messages from the Gemini Live API. */
   private handleMessage(msg: any): void {
+    // Handle audio transcription (from outputAudioTranscription config)
+    const transcript = msg?.serverContent?.outputTranscription?.text;
+    if (transcript) {
+      this.emit('text', transcript);
+    }
+
     // Check for serverContent with audio parts
     const parts = msg?.serverContent?.modelTurn?.parts;
     if (!parts) return;
@@ -149,10 +156,6 @@ export class GeminiLiveSession extends EventEmitter {
         }
 
         this.emit('audio', pcm16k);
-      }
-
-      if (part?.text) {
-        this.emit('text', part.text);
       }
     }
   }
@@ -177,7 +180,7 @@ export class GeminiLiveSession extends EventEmitter {
   private handleClose(): void {
     if (this.intentionalDisconnect) return;
 
-    console.log('[AI] Connection closed unexpectedly, attempting reconnect...');
+    console.log(`[AI] Connection closed unexpectedly (state=${this.state}), attempting reconnect...`);
     this.reconnect().catch((err) => {
       this.emit('error', err);
     });
@@ -198,7 +201,8 @@ export class GeminiLiveSession extends EventEmitter {
         this.session = await this.ai.live.connect({
           model: this.config.model,
           config: {
-            responseModalities: [Modality.AUDIO, Modality.TEXT],
+            responseModalities: [Modality.AUDIO],
+          outputAudioTranscription: {},
             systemInstruction: {
               parts: [{ text: this.config.systemPrompt }],
             },

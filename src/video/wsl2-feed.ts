@@ -1,4 +1,4 @@
-import { spawn as defaultSpawn, execSync, type ChildProcess } from 'child_process';
+import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as http from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
@@ -10,18 +10,18 @@ export type SpawnFunction = typeof defaultSpawn;
 const BOUNDARY = 'mjpegboundary';
 
 /**
- * WSL2 video feed: spawns ffmpeg.exe on Windows via powershell.exe and serves
- * the MJPEG output over HTTP as a multipart stream.
+ * WSL2 video feed: spawns ffmpeg inside WSL2 and serves the MJPEG output
+ * over HTTP as a multipart stream.
  *
  * Uses a broadcast pattern so multiple HTTP clients can consume the stream
  * simultaneously (e.g. browser tab + OBS Virtual Camera).
  *
  * Architecture:
- *   powershell.exe → ffmpeg.exe → stdout (MJPEG frames)
- *                                      ↓
- *                            HTTP multipart/x-mixed-replace
- *                                      ↓
- *                              HTTP clients (Set)
+ *   ffmpeg (WSL2) → stdout (MJPEG frames)
+ *                        ↓
+ *              HTTP multipart/x-mixed-replace
+ *                        ↓
+ *                HTTP clients (Set)
  */
 export class Wsl2VideoFeed extends EventEmitter implements VideoFeed {
   private proc: ChildProcess | null = null;
@@ -39,7 +39,7 @@ export class Wsl2VideoFeed extends EventEmitter implements VideoFeed {
     this.spawnFn = spawnFn ?? defaultSpawn;
   }
 
-  /** Start the HTTP MJPEG server and spawn ffmpeg.exe via powershell.exe. */
+  /** Start the HTTP MJPEG server and spawn ffmpeg. */
   start(imagePath: string): void {
     this.stopped = false;
     this.imagePath = imagePath;
@@ -84,31 +84,16 @@ export class Wsl2VideoFeed extends EventEmitter implements VideoFeed {
   }
 
   private spawnFfmpeg(): void {
-    // Convert WSL path to Windows path for ffmpeg.exe
-    let winPath: string;
-    try {
-      winPath = execSync(`wslpath -w "${this.imagePath}"`).toString().trim();
-    } catch (err) {
-      this.emit('error', new Error(`wslpath failed: ${err}`));
-      return;
-    }
-
-    // Escape backslashes for PowerShell string
-    const escapedPath = winPath.replace(/\\/g, '\\\\');
-
-    const psCommand = [
-      `ffmpeg.exe`,
-      `-loop 1`,
-      `-re`,
-      `-i "${escapedPath}"`,
-      `-vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1"`,
-      `-f image2pipe`,
-      `-vcodec mjpeg`,
-      `-r 15`,
-      `pipe:1`,
-    ].join(' ');
-
-    this.proc = this.spawnFn('powershell.exe', ['-Command', psCommand], {
+    this.proc = this.spawnFn('ffmpeg', [
+      '-loop', '1',
+      '-re',
+      '-i', this.imagePath,
+      '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1',
+      '-f', 'image2pipe',
+      '-vcodec', 'mjpeg',
+      '-r', '15',
+      'pipe:1',
+    ], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -150,7 +135,7 @@ export class Wsl2VideoFeed extends EventEmitter implements VideoFeed {
     this.proc.stderr!.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
       if (msg) {
-        process.stderr.write(`[ffmpeg.exe/video] ${msg}\n`);
+        process.stderr.write(`[ffmpeg/video] ${msg}\n`);
       }
     });
 
@@ -160,7 +145,7 @@ export class Wsl2VideoFeed extends EventEmitter implements VideoFeed {
 
     this.proc.on('exit', (code, signal) => {
       if (!this.stopped) {
-        console.warn(`[ffmpeg.exe/video] Exited with code=${code} signal=${signal}, restarting...`);
+        console.warn(`[ffmpeg/video] Exited with code=${code} signal=${signal}, restarting...`);
         this.emit('restarting');
         this.restartTimer = setTimeout(() => {
           this.spawnFfmpeg();
@@ -191,16 +176,7 @@ export class Wsl2VideoFeed extends EventEmitter implements VideoFeed {
   }
 
   private killProc(): void {
-    if (this.proc && this.proc.pid != null) {
-      const pid = this.proc.pid;
-      // Kill the Windows process tree via taskkill
-      try {
-        this.spawnFn('powershell.exe', ['-Command', `taskkill /F /T /PID ${pid}`], {
-          stdio: 'ignore',
-        });
-      } catch {
-        // Best-effort
-      }
+    if (this.proc) {
       try {
         this.proc.kill('SIGTERM');
       } catch {
