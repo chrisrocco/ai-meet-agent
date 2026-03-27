@@ -30,7 +30,7 @@ export class OperatorAudioMonitor extends EventEmitter {
    */
   start(platform: Platform, ffplayPath?: string): void {
     const bin = ffplayPath ?? (platform === 'wsl2' ? 'ffplay.exe' : 'ffplay');
-    const ffplayArgs = ['-f', 's16le', '-ar', '16000', '-ac', '1',
+    const ffplayArgs = ['-f', 's16le', '-ar', '16000', '-ch_layout', 'mono',
       '-nodisp', '-loglevel', 'warning', '-i', 'pipe:0'];
 
     // WSL2: WASAPI fails from WSL2 interop — launch via cmd.exe with
