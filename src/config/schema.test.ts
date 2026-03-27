@@ -50,13 +50,14 @@ describe('loadConfig', () => {
     assert.throws(
       () => loadConfig(path),
       (err: Error) => {
-        assert.ok(err.message.includes('Invalid config.json'), `Expected 'Invalid config.json' in: ${err.message}`);
+        assert.ok(err.message.includes('Invalid config at'), `Expected 'Invalid config at' in: ${err.message}`);
+        assert.ok(err.message.includes('devices'), `Expected field name 'devices' in: ${err.message}`);
         return true;
       }
     );
   });
 
-  it('throws a ZodError when videoNr is 99 (above max 63)', () => {
+  it('throws a ConfigError with field path when videoNr is 99 (above max 63)', () => {
     const path = makeTempConfig({
       devices: {
         camera: { label: 'X', videoNr: 99 },
@@ -67,7 +68,30 @@ describe('loadConfig', () => {
     assert.throws(
       () => loadConfig(path),
       (err: Error) => {
-        assert.ok(err.message.includes('Invalid config.json'), `Expected 'Invalid config.json' in: ${err.message}`);
+        assert.ok(err.message.includes('Invalid config at'), `Expected 'Invalid config at' in: ${err.message}`);
+        assert.ok(err.message.includes('devices.camera.videoNr'), `Expected field path 'devices.camera.videoNr' in: ${err.message}`);
+        return true;
+      }
+    );
+  });
+
+  it('throws a ConfigError with field path for invalid type', () => {
+    const path = makeTempConfig({ audio: { relayPort: 'not-a-number' } });
+    assert.throws(
+      () => loadConfig(path),
+      (err: Error) => {
+        assert.ok(err.message.includes('audio.relayPort'), `Expected field path 'audio.relayPort' in: ${err.message}`);
+        return true;
+      }
+    );
+  });
+
+  it('does not include raw Zod format dump markers in error message', () => {
+    const path = makeTempConfig({ devices: null });
+    assert.throws(
+      () => loadConfig(path),
+      (err: Error) => {
+        assert.ok(!err.message.includes('_errors'), `Error should not contain raw Zod _errors dump: ${err.message}`);
         return true;
       }
     );
@@ -99,7 +123,7 @@ describe('ConfigSchema persona defaults', () => {
 describe('ConfigSchema ai defaults', () => {
   it('provides ai model default when parsing empty object', () => {
     const cfg = ConfigSchema.parse({});
-    assert.equal(cfg.ai.model, 'gemini-2.5-flash-native-audio-preview-12-2025');
+    assert.equal(cfg.ai.model, 'gemini-2.5-flash-native-audio-latest');
   });
 
   it('allows overriding ai model', () => {
@@ -132,7 +156,7 @@ describe('ConfigSchema full defaults', () => {
     assert.equal(cfg.audio.relayPort, 19876);
     assert.equal(cfg.video.mjpegPort, 8085);
     assert.equal(cfg.persona.name, 'AI Assistant');
-    assert.equal(cfg.ai.model, 'gemini-2.5-flash-native-audio-preview-12-2025');
+    assert.equal(cfg.ai.model, 'gemini-2.5-flash-native-audio-latest');
     assert.equal(cfg.wsl2.captureDevice, 'CABLE Output (VB-Audio Virtual Cable)');
   });
 });

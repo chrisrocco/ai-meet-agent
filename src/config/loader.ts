@@ -37,9 +37,13 @@ export function loadConfig(configPath?: string): Config {
   }
   const result = ConfigSchema.safeParse(raw);
   if (!result.success) {
+    const issues = result.error.issues.map(issue => {
+      const field = issue.path.join('.') || '(root)';
+      return `  ${field}: ${issue.message}`;
+    }).join('\n');
     throw new ConfigError(
-      `Invalid config.json:\n${result.error.format()}`,
-      'Check config.json fields match the expected schema'
+      `Invalid config at ${path}:\n${issues}`,
+      'Fix the fields listed above — see config.example.json for valid values'
     );
   }
   return result.data;
