@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/chrisrocco/ai-meet-agent.git"
+    "url": "git+https://github.com/chrisrocco/ai-meet-agent.git"
   },
   "keywords": [
     "ai",
@@ -18,7 +18,7 @@
     "cli"
   ],
   "bin": {
-    "ai-meet": "./bin/ai-meet.ts"
+    "ai-meet": "bin/ai-meet.ts"
   },
   "files": [
     "bin/",
