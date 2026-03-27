@@ -1,6 +1,6 @@
 {
   "name": "ai-meet-agent",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "AI meeting twin — bidirectional realtime audio through Google Meet",
   "type": "module",
   "license": "MIT",
