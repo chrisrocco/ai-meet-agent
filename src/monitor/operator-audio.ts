@@ -30,8 +30,14 @@ export class OperatorAudioMonitor extends EventEmitter {
    */
   start(platform: Platform, ffplayPath?: string): void {
     const bin = ffplayPath ?? (platform === 'wsl2' ? 'ffplay.exe' : 'ffplay');
-    const ffplayArgs = ['-f', 's16le', '-ar', '16000', '-ch_layout', 'mono',
-      '-nodisp', '-loglevel', 'warning', '-i', 'pipe:0'];
+    const ffplayArgs = [
+      '-probesize', '32',
+      '-analyzeduration', '0',
+      '-fflags', 'nobuffer',
+      '-flags', 'low_delay',
+      '-f', 's16le', '-ar', '16000', '-ch_layout', 'mono',
+      '-nodisp', '-loglevel', 'warning', '-i', 'pipe:0',
+    ];
 
     // WSL2: WASAPI fails from WSL2 interop — launch via cmd.exe with
     // SDL_AUDIODRIVER=directsound to route through default DirectSound output.
