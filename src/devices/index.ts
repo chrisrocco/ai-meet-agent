@@ -4,6 +4,7 @@ import { VirtualCamera } from './virtual-camera.js';
 import { VirtualAudioDevices } from './virtual-audio.js';
 import { detectPlatform, type Platform } from '../platform/detect.js';
 import { checkWsl2Prerequisites, type Wsl2Status } from '../platform/wsl2.js';
+import { DeviceError } from '../errors/index.js';
 
 export interface DeviceStatus {
   platform: Platform;
@@ -76,7 +77,13 @@ export class DeviceManager {
     printPrereqStatus(prereqs);
 
     if (!prereqs.ok) {
-      throw new Error('Prerequisites not met. Fix the issues above and try again.');
+      const failures = prereqs.checks.filter(c => !c.ok);
+      const names = failures.map(f => `  - ${f.name}`).join('\n');
+      const fixes = failures.filter(f => f.fix).map(f => `  ${f.fix}`).join('\n');
+      throw new DeviceError(
+        `Missing dependencies:\n${names}`,
+        `Install missing dependencies, then retry:\n${fixes}`
+      );
     }
 
     // 2. Create virtual audio devices

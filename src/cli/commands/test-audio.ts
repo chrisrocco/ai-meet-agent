@@ -56,15 +56,7 @@ async function testAudio(options: { config?: string }): Promise<void> {
 
   const config = loadConfig(options.config);
   const manager = new DeviceManager(config, platform);
-
-  let status;
-  try {
-    status = manager.startup({ startTestPattern: platform !== 'wsl2' });
-  } catch (err) {
-    // DeviceManager throws on prerequisite failure
-    console.error(`\n[FAIL] ${(err as Error).message}`);
-    process.exit(1);
-  }
+  const status = manager.startup({ startTestPattern: platform !== 'wsl2' });
 
   console.log('\nDevice status:');
   console.log(`  Camera device:  ${status.cameraDevice}`);

@@ -122,14 +122,7 @@ async function startSession(options: StartOptions): Promise<void> {
   console.log('[Transcript] Writing to ./transcript.log');
 
   const manager = new DeviceManager(config, platform);
-
-  let status;
-  try {
-    status = manager.startup({ startTestPattern: false });
-  } catch (err) {
-    // DeviceManager throws DeviceError on prerequisite failure
-    throw err;
-  }
+  const status = manager.startup({ startTestPattern: false });
 
   if (platform === 'wsl2') {
     console.log('\nWSL2 bridge mode — devices managed on Windows side.');
