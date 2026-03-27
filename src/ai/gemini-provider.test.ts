@@ -145,6 +145,6 @@ describe('GeminiProvider', () => {
     callbacks.onerror!(testError);
 
     assert.ok(receivedError);
-    assert.ok(receivedError!.message.includes('403'));
+    assert.ok((receivedError as Error).message.includes('403'));
   });
 });

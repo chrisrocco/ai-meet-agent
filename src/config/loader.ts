@@ -11,13 +11,15 @@ const PROJECT_ROOT = resolve(fileURLToPath(import.meta.url), '../../..');
  * @param argv - process.argv array
  * @returns Parsed CLI arguments
  */
-export function parseCliArgs(argv: string[]): { configPath?: string; meetingPath?: string } {
-  const args: { configPath?: string; meetingPath?: string } = {};
+export function parseCliArgs(argv: string[]): { configPath?: string; meetingPath?: string; rolePath?: string } {
+  const args: { configPath?: string; meetingPath?: string; rolePath?: string } = {};
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--config' && argv[i + 1]) {
       args.configPath = argv[++i];
     } else if (argv[i] === '--meeting' && argv[i + 1]) {
       args.meetingPath = argv[++i];
+    } else if (argv[i] === '--role' && argv[i + 1]) {
+      args.rolePath = argv[++i];
     }
   }
   return args;
