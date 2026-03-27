@@ -46,6 +46,11 @@ export class OperatorAudioMonitor extends EventEmitter {
       });
     }
 
+    this.proc.stdin?.on('error', () => {
+      // Absorb EPIPE — ffplay exited before we stopped writing
+      this.proc = null;
+    });
+
     this.proc.on('error', (err) => {
       console.warn(`[Monitor] ffplay error: ${err.message}`);
       this.proc = null;
