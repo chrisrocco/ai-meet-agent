@@ -31,20 +31,25 @@ export class OperatorAudioMonitor extends EventEmitter {
   start(platform: Platform, ffplayPath?: string): void {
     const bin = ffplayPath ?? (platform === 'wsl2' ? 'ffplay.exe' : 'ffplay');
     const ffplayArgs = ['-f', 's16le', '-ar', '16000', '-ac', '1',
-      '-nodisp', '-autoexit', '-loglevel', 'quiet', '-i', 'pipe:0'];
+      '-nodisp', '-loglevel', 'warning', '-i', 'pipe:0'];
 
     // WSL2: WASAPI fails from WSL2 interop — launch via cmd.exe with
     // SDL_AUDIODRIVER=directsound to route through default DirectSound output.
     if (platform === 'wsl2') {
       const cmdLine = `set SDL_AUDIODRIVER=directsound&& ${bin} ${ffplayArgs.join(' ')}`;
       this.proc = this.spawnFn('cmd.exe', ['/C', cmdLine], {
-        stdio: ['pipe', 'ignore', 'ignore'],
+        stdio: ['pipe', 'ignore', 'pipe'],
       });
     } else {
       this.proc = this.spawnFn(bin, ffplayArgs, {
-        stdio: ['pipe', 'ignore', 'ignore'],
+        stdio: ['pipe', 'ignore', 'pipe'],
       });
     }
+
+    this.proc.stderr?.on('data', (data: Buffer) => {
+      const msg = data.toString().trim();
+      if (msg) console.warn(`[Monitor] ${msg}`);
+    });
 
     this.proc.stdin?.on('error', () => {
       // Absorb EPIPE — ffplay exited before we stopped writing
@@ -56,7 +61,10 @@ export class OperatorAudioMonitor extends EventEmitter {
       this.proc = null;
     });
 
-    this.proc.on('exit', () => {
+    this.proc.on('exit', (code, signal) => {
+      if (code !== 0 && code !== null) {
+        console.warn(`[Monitor] ffplay exited with code ${code} — operator will not hear audio`);
+      }
       this.proc = null;
     });
   }
