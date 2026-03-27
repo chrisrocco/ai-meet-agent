@@ -2,15 +2,20 @@ import { execSync } from 'child_process';
 
 export class VirtualAudioDevices {
   private sinkModuleId: number | null = null;
-  private micModuleId: number | null = null;
+  private micSinkModuleId: number | null = null;
+  private micSourceModuleId: number | null = null;
 
   /**
-   * Load two pactl modules:
-   * 1. A null-sink for AI audio output (the AI writes to this; Chrome can subscribe to it)
-   * 2. A virtual microphone source (Chrome sees this as a mic input device)
+   * Load three pactl modules:
+   * 1. A null-sink for capturing Meet audio (parec reads its monitor)
+   * 2. A null-sink for the virtual mic (pacat writes AI audio here)
+   * 3. A remap-source exposing the mic sink's monitor as a proper source
+   *    that Chrome sees as a selectable microphone input
    *
-   * IMPORTANT: module-null-sink with media.class=Audio/Source/Virtual creates a proper
-   * source (not a monitor), so Chrome does NOT filter it from the microphone list.
+   * The remap-source is needed because PipeWire's module-null-sink with
+   * media.class=Audio/Source/Virtual creates a disconnected source —
+   * audio written to the sink never reaches the source. The remap-source
+   * bridges the sink's monitor to a real source Chrome can read.
    */
   create(
     sinkName: string,
@@ -18,11 +23,11 @@ export class VirtualAudioDevices {
     micName: string,
     micLabel: string
   ): void {
-    if (this.sinkModuleId !== null || this.micModuleId !== null) {
+    if (this.sinkModuleId !== null || this.micSinkModuleId !== null) {
       throw new Error('VirtualAudioDevices: already created. Call cleanup() first.');
     }
 
-    // Create output sink (AI audio goes here)
+    // 1. Create capture sink (Meet audio goes here, parec reads its monitor)
     const sinkOut = execSync(
       `pactl load-module module-null-sink sink_name="${sinkName}" sink_properties=device.description="${sinkLabel}"`,
       { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
@@ -32,43 +37,61 @@ export class VirtualAudioDevices {
       throw new Error(`pactl returned unexpected output for sink: "${sinkOut}"`);
     }
 
-    // Create virtual microphone (Chrome sees this as a mic input)
-    // media.class=Audio/Source/Virtual prevents Chrome from filtering it as a monitor
-    const micOut = execSync(
-      `pactl load-module module-null-sink media.class=Audio/Source/Virtual sink_name="${micName}" sink_properties=device.description="${micLabel}"`,
+    // 2. Create mic null-sink (pacat writes AI audio here)
+    const micSinkOut = execSync(
+      `pactl load-module module-null-sink sink_name="${micName}" sink_properties=device.description="${micLabel}"`,
       { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
     ).trim();
-    this.micModuleId = parseInt(micOut, 10);
-    if (isNaN(this.micModuleId)) {
-      throw new Error(`pactl returned unexpected output for mic: "${micOut}"`);
+    this.micSinkModuleId = parseInt(micSinkOut, 10);
+    if (isNaN(this.micSinkModuleId)) {
+      throw new Error(`pactl returned unexpected output for mic sink: "${micSinkOut}"`);
+    }
+
+    // 3. Remap the mic sink's monitor as a proper source (Chrome sees this as a mic)
+    const micSourceOut = execSync(
+      `pactl load-module module-remap-source source_name="${micName}_source" master="${micName}.monitor" source_properties=device.description="${micLabel}"`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+    ).trim();
+    this.micSourceModuleId = parseInt(micSourceOut, 10);
+    if (isNaN(this.micSourceModuleId)) {
+      throw new Error(`pactl returned unexpected output for mic source: "${micSourceOut}"`);
     }
 
     console.log(`[VirtualAudio] Loaded sink module ${this.sinkModuleId} (${sinkLabel})`);
-    console.log(`[VirtualAudio] Loaded mic module ${this.micModuleId} (${micLabel})`);
+    console.log(`[VirtualAudio] Loaded mic module ${this.micSinkModuleId} + remap ${this.micSourceModuleId} (${micLabel})`);
   }
 
-  /** Unload both pactl modules. Safe to call even if create() was never called. */
+  /** Unload all pactl modules. Safe to call even if create() was never called. */
   cleanup(): void {
-    if (this.micModuleId !== null) {
+    // Unload in reverse order: remap source first, then sinks
+    if (this.micSourceModuleId !== null) {
       try {
-        execSync(`pactl unload-module ${this.micModuleId}`, { stdio: 'pipe' });
-        console.log(`[VirtualAudio] Unloaded mic module ${this.micModuleId}`);
+        execSync(`pactl unload-module ${this.micSourceModuleId}`, { stdio: 'pipe' });
       } catch (err) {
-        console.warn(`[VirtualAudio] Failed to unload mic module ${this.micModuleId}: ${(err as Error).message}`);
+        console.warn(`[VirtualAudio] Failed to unload mic remap module ${this.micSourceModuleId}: ${(err as Error).message}`);
       }
-      this.micModuleId = null;
+      this.micSourceModuleId = null;
+    }
+    if (this.micSinkModuleId !== null) {
+      try {
+        execSync(`pactl unload-module ${this.micSinkModuleId}`, { stdio: 'pipe' });
+      } catch (err) {
+        console.warn(`[VirtualAudio] Failed to unload mic sink module ${this.micSinkModuleId}: ${(err as Error).message}`);
+      }
+      this.micSinkModuleId = null;
     }
     if (this.sinkModuleId !== null) {
       try {
         execSync(`pactl unload-module ${this.sinkModuleId}`, { stdio: 'pipe' });
-        console.log(`[VirtualAudio] Unloaded sink module ${this.sinkModuleId}`);
       } catch (err) {
         console.warn(`[VirtualAudio] Failed to unload sink module ${this.sinkModuleId}: ${(err as Error).message}`);
       }
       this.sinkModuleId = null;
     }
+    console.log('[VirtualAudio] Modules unloaded.');
   }
 
   get sinkModule(): number | null { return this.sinkModuleId; }
-  get micModule(): number | null { return this.micModuleId; }
+  get micSinkModule(): number | null { return this.micSinkModuleId; }
+  get micSourceModule(): number | null { return this.micSourceModuleId; }
 }
