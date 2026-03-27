@@ -1,426 +1,484 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** AI virtual meeting agent (Linux virtual devices + realtime AI audio)
-**Researched:** 2026-03-25
-**Confidence:** MEDIUM — based on training knowledge of Linux virtual device systems, PulseAudio/PipeWire internals, and Gemini Live API patterns. External verification blocked during research session; flag critical claims for validation.
-
----
-
-## Recommended Architecture
-
-The system is a pipeline of five distinct layers. Data flows left-to-right through the pipeline, with a feedback loop back into Meet via the virtual microphone.
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         GOOGLE MEET (Browser)                           │
-│  [Other participants' audio out] ────────────► [Virtual Mic input]      │
-└──────────────────┬──────────────────────────────────────▲───────────────┘
-                   │ system audio out                     │ virtual mic device
-                   ▼                                      │
-┌──────────────────────────────┐          ┌───────────────────────────────┐
-│   LAYER 1: VIRTUAL DEVICES   │          │  LAYER 1: VIRTUAL DEVICES     │
-│   Audio Capture Sink         │          │  Virtual Source (mic)         │
-│   (PulseAudio/PipeWire sink) │          │  (PulseAudio/PipeWire source) │
-│   v4l2loopback (video)       │          │                               │
-└──────────────────┬───────────┘          └───────────────▲───────────────┘
-                   │ PCM audio frames                     │ PCM audio frames
-                   ▼                                      │
-┌──────────────────────────────┐          ┌───────────────────────────────┐
-│   LAYER 2: AUDIO CAPTURE     │          │  LAYER 4: AUDIO OUTPUT        │
-│   Read audio frames from     │          │  Write AI response audio to   │
-│   monitor/loopback device    │          │  virtual source device        │
-│   (Node.js stream)           │          │  (Node.js stream)             │
-└──────────────────┬───────────┘          └───────────────▲───────────────┘
-                   │ raw PCM / encoded audio              │ raw PCM audio
-                   ▼                                      │
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    LAYER 3: AI API INTEGRATION                          │
-│   WebSocket connection to Gemini Live API                               │
-│   Send: audio chunks (16kHz PCM, base64-encoded)                        │
-│   Receive: audio response chunks (24kHz PCM, base64-encoded)            │
-│   Maintain: session state, turn management, system prompt / persona     │
-└─────────────────────────────────────────────────────────────────────────┘
-                   │ (static image feed, separate path)
-                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    LAYER 5: VIDEO FEED                                  │
-│   Read static image file → encode as YUYV/MJPEG frames                 │
-│   Write frame loop to /dev/videoN (v4l2loopback)                        │
-│   ffmpeg loop process (subprocess, independent of audio pipeline)       │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    LAYER 6: ORCHESTRATION / CONTROL                     │
-│   CLI entry point, lifecycle management (start/stop/status)             │
-│   Device setup/teardown, persona config loading, error recovery         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+**Domain:** CLI tooling, npm packaging, and provider abstraction for existing AI Meet Agent
+**Researched:** 2026-03-26
+**Confidence:** HIGH — existing codebase is directly inspectable; patterns are well-established in Node.js ecosystem
 
 ---
 
-## Component Boundaries
+## Context: What Already Exists
 
-| Component | Responsibility | Communicates With | Technology |
-|-----------|---------------|-------------------|------------|
-| Virtual Audio Sink | Exposes a null-sink that Meet's browser audio plays into; its monitor is readable as a capture source | OS audio subsystem | PulseAudio `module-null-sink` or PipeWire equivalent |
-| Virtual Mic Source | Exposes a virtual microphone source that the browser sees as a real mic | OS audio subsystem | PulseAudio `module-virtual-source` or PipeWire loopback |
-| Virtual Camera Device | Exposes `/dev/videoN` as a V4L2 device readable by the browser | Kernel (v4l2loopback module) | `v4l2loopback` kernel module |
-| Audio Capture Module | Reads PCM frames from the monitor of the virtual sink; buffers into chunks for AI API | Virtual Audio Sink, AI Client | Node.js `child_process` + `parec` or `pacat`, or PipeWire pw-record |
-| AI Client (Gemini Live) | Manages WebSocket session to Gemini Live API; sends audio in, receives audio out; manages turns and session | Audio Capture Module, Audio Output Module, Persona Config | `@google/generative-ai` SDK or raw WebSocket |
-| Audio Output Module | Receives PCM chunks from AI Client; writes to virtual mic source device | AI Client, Virtual Mic Source | Node.js stream → `pacat` / `pw-play` subprocess |
-| Video Feed Module | Reads static image file; encodes and loops frames into v4l2loopback device | Virtual Camera Device | `ffmpeg` subprocess (`-re -loop 1 -i img.jpg -f v4l2 /dev/videoN`) |
-| Persona Config | Holds system prompt text, user background, meeting context; loaded at startup | AI Client | JSON/YAML config file |
-| Orchestrator / CLI | Entry point; coordinates startup ordering, device setup, teardown, error recovery | All modules | Node.js main process, `commander` or plain `process.argv` |
+The v1.0 codebase is a complete, working pipeline. This research maps only the new components and integration points for the v1.1 milestone. Do not redesign what works.
+
+Current entry point is `src/index.ts` — a monolithic `main()` function invoked via `npm run dev`. CLI arg parsing is a minimal hand-rolled loop in `src/config/loader.ts` that understands `--config` and `--meeting` only. There is one other CLI entry point: `src/cli/test-devices.ts`, invoked via `npm run test-devices`.
 
 ---
 
-## Data Flow
+## System Overview
 
-### Primary Audio Loop (latency-critical path)
-
-```
-[Meet participant speaks]
-       │
-       ▼
-Browser audio output → PulseAudio/PipeWire default sink
-       │
-       ▼  (loopback / monitor tap)
-Virtual Sink Monitor (/dev/null-sink.monitor or PipeWire monitor port)
-       │
-       ▼  (parec / pw-record subprocess, streaming stdout)
-Audio Capture Module (Node.js readable stream)
-       │  16kHz, 16-bit PCM, mono — chunk every ~100ms
-       ▼
-Gemini Live API (WebSocket, send audio_chunk messages)
-       │  async response stream
-       ▼
-AI Client receives audio response chunks (24kHz PCM, base64)
-       │
-       ▼
-Audio Output Module (Node.js writable stream → pacat / pw-play subprocess)
-       │
-       ▼
-Virtual Mic Source → browser sees this as microphone input
-       │
-       ▼
-[Meet transmits AI voice to other participants]
-```
-
-### Video Feed Path (non-latency-critical, runs independently)
+### Current (v1.0) Entry Layer
 
 ```
-[static image file on disk]
-       │
-       ▼
-ffmpeg subprocess (-loop 1 -re -f v4l2 output)
-       │
-       ▼
-/dev/videoN (v4l2loopback)
-       │
-       ▼
-Browser selects /dev/videoN as webcam → displayed to other participants
+npm run dev
+    └── tsx src/index.ts [--config path] [--meeting path]
+         └── main() — monolithic startup function
+              ├── parseCliArgs()      src/config/loader.ts
+              ├── loadConfig()        src/config/loader.ts
+              ├── loadMeetingContext() src/meeting/loader.ts
+              ├── DeviceManager       src/devices/index.ts
+              ├── AudioCapture/Output src/audio/
+              ├── GeminiLiveSession   src/ai/session.ts
+              ├── TranscriptWriter    src/transcript/writer.ts
+              ├── OperatorAudioMonitor src/monitor/operator-audio.ts
+              └── VideoFeed           src/video/
+
+npm run test-devices
+    └── tsx src/cli/test-devices.ts
+         └── standalone device verification
 ```
 
-### Control Flow (startup sequence)
+### Target (v1.1) Entry Layer
 
 ```
-CLI invoked with --persona config.json
-       │
-       ▼
-Orchestrator: load persona config
-       │
-       ▼
-Orchestrator: setup virtual devices
-  ├── load v4l2loopback kernel module (modprobe)
-  └── create PulseAudio/PipeWire null-sink + virtual-source
-       │
-       ▼
-Orchestrator: start video feed subprocess (ffmpeg)
-       │
-       ▼
-Orchestrator: establish Gemini Live WebSocket session (with system prompt)
-       │
-       ▼
-Orchestrator: start audio capture subprocess, pipe to AI Client
-       │
-       ▼
-[System running — user joins Meet and selects virtual devices]
-       │
-       ▼
-[Audio loop active until CLI shutdown signal]
-       │
-       ▼
-Orchestrator: teardown (stop subprocesses, remove PulseAudio modules, optionally unload kernel module)
+ai-meet <subcommand> [flags]         ← installable bin from npm link / npx
+    │
+    ├── ai-meet start [--config] [--notes] [--role]
+    │       └── src/cli/commands/start.ts    (NEW — wraps existing main() logic)
+    │
+    ├── ai-meet list-devices
+    │       └── src/cli/commands/list-devices.ts   (NEW)
+    │
+    └── ai-meet test-audio
+            └── src/cli/commands/test-audio.ts     (NEW — replaces test-devices script)
+
+src/cli/index.ts    ← NEW: Commander program definition, subcommand wiring
+bin/ai-meet.js      ← NEW: shebang wrapper, points to compiled output or tsx
 ```
 
 ---
 
-## Patterns to Follow
+## Recommended Project Structure
 
-### Pattern 1: Subprocess Streams for Device I/O
+The new components fit cleanly into the existing structure. Changes are additive.
 
-**What:** Use `pacat`, `parec`, or `pw-record`/`pw-play` as child processes with stdio piped into Node.js streams rather than attempting to bind native audio device libraries directly.
+```
+src/
+├── ai/
+│   ├── provider.ts         NEW: AIProvider interface
+│   ├── gemini-provider.ts  NEW: Gemini implementation of AIProvider
+│   ├── session.ts          MODIFY: GeminiLiveSession becomes impl detail
+│   ├── index.ts            MODIFY: export AIProvider interface + factory
+│   ├── persona.ts          UNCHANGED
+│   ├── types.ts            MODIFY: add shared AI provider event types
+│   └── ...
+├── cli/
+│   ├── index.ts            NEW: Commander program, subcommands wired
+│   ├── commands/
+│   │   ├── start.ts        NEW: `ai-meet start` — extracts logic from src/index.ts
+│   │   ├── list-devices.ts NEW: `ai-meet list-devices`
+│   │   └── test-audio.ts   NEW: `ai-meet test-audio`
+│   └── test-devices.ts     EXISTING: can be kept or folded into commands/
+├── config/
+│   ├── schema.ts           MODIFY: add roleFile/notesFile fields to Config
+│   ├── loader.ts           MODIFY: parseCliArgs gets --notes, --role flags
+│   └── role-loader.ts      NEW: load role/persona from .md or .json file
+├── errors/
+│   └── index.ts            NEW: typed error classes, actionable message formatting
+├── audio/        UNCHANGED
+├── devices/      UNCHANGED
+├── meeting/      UNCHANGED
+├── monitor/      UNCHANGED
+├── platform/     UNCHANGED
+├── transcript/   UNCHANGED
+├── video/        UNCHANGED
+└── index.ts      MODIFY: thin shim delegating to cli/commands/start.ts, or remove
 
-**When:** Always — Node.js lacks mature native PulseAudio/PipeWire bindings. The subprocess approach is reliable and well-understood.
+bin/
+└── ai-meet.js              NEW: shebang entry point (#!/usr/bin/env node or tsx)
+```
+
+### Structure Rationale
+
+- **`src/cli/commands/`**: One file per subcommand. Commander wires them; each file is independently testable. Avoids a god-file.
+- **`src/ai/provider.ts`**: Interface extracted from GeminiLiveSession's public contract. Gemini remains the sole implementation for now, but the abstraction is established.
+- **`src/errors/`**: Centralizing error types prevents actionable-message logic from scattering across every command handler.
+- **`bin/`**: Standard npm convention. The `bin` field in `package.json` points here. Separating from `src/` avoids polluting TypeScript compilation.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: Commander Subcommand Registration
+
+**What:** Commander.js organizes subcommands as discrete units. Each command file calls `program.command()` with its own options and action handler.
+
+**When to use:** Any CLI with 2+ subcommands. Commander is the dominant choice at 35M+ weekly downloads, has excellent TypeScript types, and needs no framework scaffolding. Yargs or oclif would be overkill for this project's scope.
+
+**Trade-offs:** Commander has no built-in help generation for complex nested commands or plugin system, but those are not needed here.
 
 **Example:**
 ```typescript
-import { spawn } from 'child_process';
+// src/cli/index.ts
+import { Command } from 'commander';
+import { registerStart } from './commands/start.js';
+import { registerListDevices } from './commands/list-devices.js';
+import { registerTestAudio } from './commands/test-audio.js';
 
-// Capture from virtual sink monitor
-const capture = spawn('parec', [
-  '--device=virtual-sink.monitor',
-  '--rate=16000',
-  '--channels=1',
-  '--format=s16le',
-]);
-capture.stdout.on('data', (chunk: Buffer) => {
-  aiClient.sendAudio(chunk);
-});
+const program = new Command();
+program
+  .name('ai-meet')
+  .description('AI virtual meeting agent')
+  .version('1.1.0');
 
-// Write AI response to virtual mic
-const playback = spawn('pacat', [
-  '--device=virtual-mic-source',
-  '--rate=24000',
-  '--channels=1',
-  '--format=s16le',
-  '--playback',
-]);
-aiClient.on('audioChunk', (chunk: Buffer) => {
-  playback.stdin.write(chunk);
-});
+registerStart(program);
+registerListDevices(program);
+registerTestAudio(program);
+
+program.parseAsync(process.argv);
 ```
 
-**Confidence:** HIGH — this pattern is the standard approach for Node.js audio I/O on Linux.
+```typescript
+// src/cli/commands/start.ts
+import type { Command } from 'commander';
+
+export function registerStart(program: Command): void {
+  program
+    .command('start')
+    .description('Start the AI meeting agent')
+    .option('--config <path>', 'Path to config.json')
+    .option('--notes <path>', 'Meeting notes markdown file')
+    .option('--role <path>', 'Role/persona markdown or JSON file')
+    .action(async (opts) => {
+      // extracted from current src/index.ts main()
+    });
+}
+```
 
 ---
 
-### Pattern 2: Gemini Live API via WebSocket with Session Management
+### Pattern 2: AIProvider Interface with Gemini Implementation
 
-**What:** Gemini Live API uses a persistent WebSocket connection (not HTTP request/response). The session is initialized with a setup message containing the system prompt and generation config. Audio is streamed in chunks. Responses stream back asynchronously.
+**What:** An interface captures the public contract of the AI session — connect, sendAudio, events — without exposing Gemini internals. GeminiLiveSession becomes an implementation detail.
 
-**When:** For all realtime audio interaction with the AI.
+**When to use:** The interface should be designed now (it costs nothing) but should not over-engineer. Define only what the orchestrator actually calls. Do not add methods speculatively.
 
-**Key constraints (MEDIUM confidence — verify against current docs):**
-- Input audio: 16kHz, 16-bit PCM (LINEAR16), mono, base64-encoded in JSON
-- Output audio: 24kHz PCM, base64-encoded in JSON
-- Session lifetime: limited (verify current limit, likely minutes) — need reconnection logic
-- Turn management: API signals end-of-turn; don't send more audio until turn is complete OR use continuous streaming mode if available
+**Trade-offs:** Adds one indirection layer. The benefit is that adding OpenAI Realtime Audio or another provider later does not require touching the orchestrator or command files.
 
-**Example (pseudocode):**
+**Concrete contract (derived from current GeminiLiveSession public API):**
+
 ```typescript
-const ws = new WebSocket('wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=API_KEY');
+// src/ai/provider.ts
+import { EventEmitter } from 'events';
 
-ws.on('open', () => {
-  // Setup message first
-  ws.send(JSON.stringify({
-    setup: {
-      model: 'models/gemini-2.0-flash-live-001',
-      generationConfig: { responseModalities: ['AUDIO'] },
-      systemInstruction: { parts: [{ text: personaPrompt }] },
-    }
-  }));
-});
-
-// Send audio chunks
-function sendAudio(pcmChunk: Buffer) {
-  ws.send(JSON.stringify({
-    realtimeInput: {
-      mediaChunks: [{
-        mimeType: 'audio/pcm;rate=16000',
-        data: pcmChunk.toString('base64'),
-      }]
-    }
-  }));
+export interface AISessionEvents {
+  audio: (pcm16k: Buffer) => void;
+  text: (transcript: string) => void;
+  connected: () => void;
+  disconnected: () => void;
+  error: (err: Error) => void;
+  latency: (ms: number) => void;
 }
 
-// Receive audio response
-ws.on('message', (data) => {
-  const msg = JSON.parse(data.toString());
-  if (msg.serverContent?.modelTurn?.parts) {
-    for (const part of msg.serverContent.modelTurn.parts) {
-      if (part.inlineData?.mimeType?.startsWith('audio/pcm')) {
-        const audio = Buffer.from(part.inlineData.data, 'base64');
-        audioOutput.write(audio);
-      }
-    }
-  }
-});
+export interface AISession extends EventEmitter {
+  connect(): Promise<void>;
+  sendAudio(pcmChunk: Buffer): void;
+  disconnect(): Promise<void>;
+  getState(): 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+}
+
+export interface AISessionConfig {
+  systemPrompt: string;
+  // Provider-specific config (apiKey, model, etc.) passed separately
+}
+
+export type AIProviderFactory = (config: AISessionConfig) => AISession;
 ```
 
-**Confidence:** MEDIUM — API shape based on training knowledge of Gemini Live as of mid-2025. Verify exact message schema against current official docs before implementation.
+The `GeminiLiveSession` already satisfies this interface. The change is: the orchestrator (`start.ts`) receives an `AISession` rather than constructing `GeminiLiveSession` directly. A factory function creates the right implementation based on config.
 
 ---
 
-### Pattern 3: v4l2loopback + ffmpeg for Virtual Camera
+### Pattern 3: Typed Error Classes with Actionable Messages
 
-**What:** Load the `v4l2loopback` kernel module to create a virtual V4L2 device, then use ffmpeg to loop a static image into it.
+**What:** Replace scattered `process.exit(1)` calls and inline `console.error` strings with typed error classes that carry a user-facing message, an optional fix hint, and an exit code.
 
-**When:** For video feed. Simple and reliable for static placeholder.
+**When to use:** For all user-visible failure paths: missing dependencies, invalid config, missing API key, file not found, audio device unavailable.
 
-**Example:**
-```bash
-# Load module (one-time setup, requires sudo or pre-configured)
-modprobe v4l2loopback devices=1 video_nr=10 card_label="AI Agent" exclusive_caps=1
-
-# Feed static image (run as subprocess from Node.js)
-ffmpeg -re -loop 1 -i /path/to/placeholder.jpg \
-  -vf "scale=1280:720" \
-  -f v4l2 /dev/video10
-```
-
-**Confidence:** HIGH — this is the canonical v4l2loopback usage pattern, well-documented and widely used.
-
----
-
-### Pattern 4: Isolated Module Lifecycle with Graceful Teardown
-
-**What:** Each module (video feed subprocess, audio capture subprocess, WebSocket session, PulseAudio modules) is tracked by the orchestrator with explicit start/stop methods. Teardown runs in reverse startup order.
-
-**When:** Always — critical for avoiding orphaned processes and leftover PulseAudio modules across runs.
+**Trade-offs:** Minor overhead of defining classes. Large payoff in consistent formatting and testability of error messages.
 
 **Example:**
 ```typescript
-class Orchestrator {
-  private modules: Module[] = [];
-
-  async start() {
-    // Ordered startup
-    await this.deviceSetup.start();   // kernel module + PA modules
-    await this.videoFeed.start();     // ffmpeg subprocess
-    await this.aiClient.start();      // WebSocket session
-    await this.audioCapture.start();  // parec subprocess
-    await this.audioOutput.start();   // pacat subprocess
-  }
-
-  async stop() {
-    // Reverse order teardown
-    await this.audioOutput.stop();
-    await this.audioCapture.stop();
-    await this.aiClient.stop();
-    await this.videoFeed.stop();
-    await this.deviceSetup.teardown(); // remove PA modules
+// src/errors/index.ts
+export class AgentError extends Error {
+  constructor(
+    public readonly userMessage: string,
+    public readonly hint?: string,
+    public readonly exitCode: number = 1,
+  ) {
+    super(userMessage);
+    this.name = 'AgentError';
   }
 }
 
-process.on('SIGINT', () => orchestrator.stop().then(() => process.exit(0)));
-process.on('SIGTERM', () => orchestrator.stop().then(() => process.exit(0)));
+export class MissingDependencyError extends AgentError {
+  constructor(dep: string, installCommand: string) {
+    super(
+      `Missing dependency: ${dep}`,
+      `Install it with: ${installCommand}`,
+      1,
+    );
+  }
+}
+
+export class InvalidConfigError extends AgentError {
+  constructor(path: string, detail: string) {
+    super(
+      `Invalid config at ${path}: ${detail}`,
+      'Run "ai-meet init" to generate a default config.json',
+      1,
+    );
+  }
+}
 ```
+
+The top-level error handler in each command's action catches `AgentError` and prints the message + hint, then exits. Unknown errors get a stack trace (debug mode) or a generic message (default).
+
+---
+
+### Pattern 4: npm Installable Bin with tsx Shebang
+
+**What:** The `bin/ai-meet.js` file uses a tsx shebang so the CLI runs TypeScript directly without a compilation step during development or for global installs via npx.
+
+**When to use:** During development and for the global install (`npm install -g`). For production distribution, compiled output to `dist/` is preferred; the shebang can switch to `#!/usr/bin/env node` pointing at `dist/cli/index.js`.
+
+**Trade-offs:** tsx shebang works for development and npx. A compiled dist output is faster at startup and avoids requiring tsx at runtime for published packages. For this project's current stage (internal tool, not yet published), tsx shebang is the right call.
+
+**Example:**
+```javascript
+// bin/ai-meet.js (ESM, mode 755)
+#!/usr/bin/env tsx
+import '../src/cli/index.js';
+```
+
+```json
+// package.json additions
+{
+  "bin": {
+    "ai-meet": "./bin/ai-meet.js"
+  }
+}
+```
+
+After `npm link` (dev) or `npm install -g` (global), `ai-meet` is available on PATH.
+
+---
+
+## Integration Points
+
+### New vs Modified vs Unchanged Components
+
+| Component | Status | What Changes |
+|-----------|--------|--------------|
+| `src/cli/index.ts` | NEW | Commander program, subcommand wiring |
+| `src/cli/commands/start.ts` | NEW | Extracts `main()` logic from `src/index.ts` |
+| `src/cli/commands/list-devices.ts` | NEW | New subcommand |
+| `src/cli/commands/test-audio.ts` | NEW | Thin wrapper over existing test-devices logic |
+| `src/ai/provider.ts` | NEW | AISession interface, AIProviderFactory type |
+| `src/ai/gemini-provider.ts` | NEW | Factory function that returns GeminiLiveSession as AISession |
+| `src/errors/index.ts` | NEW | Typed error classes |
+| `src/config/role-loader.ts` | NEW | Load role/persona from file (`--role`) |
+| `bin/ai-meet.js` | NEW | Shebang entry point |
+| `src/index.ts` | MODIFY (thin) | Delegates to `src/cli/commands/start.ts`, or becomes unused |
+| `src/config/loader.ts` | MODIFY | `parseCliArgs` adds `--notes`, `--role` flags |
+| `src/config/schema.ts` | MODIFY | No schema change needed; role/notes are CLI flags not config fields |
+| `src/meeting/loader.ts` | UNCHANGED | Already handles `--notes` use case |
+| `src/ai/session.ts` | UNCHANGED | GeminiLiveSession implementation stays as-is |
+| `src/ai/types.ts` | MODIFY | Move shared event types to `provider.ts`, or duplicate |
+| `src/audio/` | UNCHANGED | |
+| `src/devices/` | UNCHANGED | |
+| `src/monitor/` | UNCHANGED | |
+| `src/platform/` | UNCHANGED | |
+| `src/transcript/` | UNCHANGED | |
+| `src/video/` | UNCHANGED | |
+| `package.json` | MODIFY | Add `bin` field, add `commander` dependency |
+
+### Internal Boundary: CLI → Core
+
+The command files (`start.ts`, etc.) are the only new callers of core modules. They import from the same internal APIs that `src/index.ts` currently uses. No core module APIs need to change to support the CLI layer.
+
+```
+src/cli/commands/start.ts
+    ├── imports: src/config/loader.ts       (loadConfig, parseCliArgs — extended)
+    ├── imports: src/config/role-loader.ts  (NEW)
+    ├── imports: src/meeting/loader.ts      (unchanged)
+    ├── imports: src/devices/index.ts       (unchanged)
+    ├── imports: src/audio/index.ts         (unchanged)
+    ├── imports: src/ai/gemini-provider.ts  (NEW factory)
+    ├── imports: src/errors/index.ts        (NEW)
+    ├── imports: src/transcript/writer.ts   (unchanged)
+    ├── imports: src/monitor/operator-audio.ts (unchanged)
+    └── imports: src/video/index.ts         (unchanged)
+```
+
+### External Boundary: Provider Abstraction
+
+The provider interface boundary is between the orchestrator (command files) and the AI session implementation. The `AIProviderFactory` type is the seam where future providers plug in.
+
+```
+src/cli/commands/start.ts
+    │
+    │ creates via factory
+    ▼
+AISession (interface from src/ai/provider.ts)
+    │
+    └── implemented by GeminiLiveSession (src/ai/session.ts)
+        └── uses @google/genai SDK
+```
+
+A future OpenAI provider would implement `AISession` and be selected by a `config.ai.provider` field.
+
+---
+
+## Data Flow Changes
+
+### CLI Startup Flow (v1.1)
+
+```
+$ ai-meet start --config config.json --notes meeting.md --role role.md
+        │
+        ▼
+bin/ai-meet.js (shebang)
+        │
+        ▼
+src/cli/index.ts (Commander parse)
+        │
+        ▼
+src/cli/commands/start.ts (action handler)
+        │
+        ├── loadConfig(opts.config)           ← existing
+        ├── loadRoleFile(opts.role)            ← NEW: merges into Config.persona
+        ├── loadMeetingContext(opts.notes)     ← existing (--notes replaces --meeting flag)
+        │
+        ├── [error handling: AgentError caught, user-friendly message printed]
+        │
+        └── [rest of pipeline identical to current src/index.ts main()]
+```
+
+### Role File Loading (new `--role` flag)
+
+```
+--role role.md (markdown)  OR  --role role.json (JSON)
+        │
+        ▼
+src/config/role-loader.ts
+        │
+        ├── detect file type by extension
+        ├── parse: markdown → extract fields (name, role, background sections)
+        │         JSON    → validate against persona schema subset
+        │
+        ▼
+Config['persona'] (merged into loaded config, CLI flags win over config.json)
+```
+
+---
+
+## Build Order for Implementation
+
+Dependencies determine the order. Each step can be verified in isolation.
+
+```
+Step 1: src/errors/index.ts                    (no deps — pure TS)
+  └── Verify: error classes instantiate correctly, hint/exitCode accessible
+
+Step 2: src/ai/provider.ts                     (no deps — pure interface)
+  └── Verify: GeminiLiveSession satisfies the interface structurally
+
+Step 3: src/ai/gemini-provider.ts              (deps: provider.ts, session.ts)
+  └── Verify: factory returns AISession, existing session tests still pass
+
+Step 4: src/config/role-loader.ts             (deps: config/schema.ts)
+  └── Verify: loads .md and .json role files, produces Config['persona']
+
+Step 5: src/config/loader.ts (extend parseCliArgs)
+  └── Add --notes, --role flags alongside existing --config, --meeting
+  └── Verify: existing --config/--meeting flags unchanged
+
+Step 6: src/cli/commands/start.ts             (deps: all of the above + existing core)
+  └── Extract src/index.ts main() into this file
+  └── Wire --notes/--role, use AISession interface, use AgentError for failures
+  └── Verify: `npx tsx src/cli/commands/start.ts --help` works
+
+Step 7: src/cli/commands/list-devices.ts      (deps: devices/, platform/)
+  └── New subcommand — enumerate audio/video devices
+
+Step 8: src/cli/commands/test-audio.ts        (deps: devices/, audio/)
+  └── Adapted from existing src/cli/test-devices.ts
+
+Step 9: src/cli/index.ts                      (deps: all commands)
+  └── Commander program wiring
+
+Step 10: bin/ai-meet.js + package.json bin field
+  └── Shebang wrapper
+  └── npm link to verify `ai-meet` appears on PATH
+
+Step 11: src/index.ts (thin shim or removal)
+  └── Either delegate to start command or remove and update package.json scripts
+```
+
+**Key constraint:** Step 6 (`start.ts`) must come after Steps 1–5. The provider interface (Step 2–3) and error types (Step 1) are prerequisites for the command to be cleanly implemented. Steps 7–9 are independent of each other after Step 9 (Commander wiring) brings them together.
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Monolithic Audio Loop
+### Anti-Pattern 1: Putting Business Logic in Commander Action Handlers
 
-**What:** Putting audio capture, AI communication, and audio output all in a single async function or class.
+**What people do:** Write all device setup, audio wiring, and AI session logic directly inside `.action(async (opts) => { ... })` callbacks.
 
-**Why bad:** The three stages have different timing characteristics. Capture runs at device clock rate. AI response arrives asynchronously with variable latency. Output must pace to device clock rate. Coupling them causes buffer overflows, dropped audio, or blocking.
+**Why it's wrong:** Action handlers become 200-line functions, are untestable in isolation, and cannot be called from non-Commander contexts (e.g., programmatic use, tests).
 
-**Instead:** Use Node.js streams throughout. `capture.stdout` (readable) → transform stream (base64/format) → AI WebSocket send. AI WebSocket receive → transform stream → `playback.stdin` (writable). Each stage is naturally backpressured.
-
----
-
-### Anti-Pattern 2: Loading PulseAudio Modules as Root
-
-**What:** Running the entire agent process as root to use `modprobe` and `pactl`.
-
-**Why bad:** The browser running Google Meet also needs to access PulseAudio — running PA commands as root from a separate process interferes with the user's PulseAudio session.
-
-**Instead:** `modprobe` requires root (or a pre-configured udev rule / `/etc/modules`). PulseAudio module loading (`pactl load-module`) must run as the same user as the browser. Use `sudo` only for the kernel module step, keep PA operations as the current user.
+**Do this instead:** Action handlers are thin coordinators — they parse options, call a function from the command module, and handle top-level errors. The actual logic lives in a named exported function that can be called independently.
 
 ---
 
-### Anti-Pattern 3: Sending Raw Unchunked Audio to Gemini
+### Anti-Pattern 2: Duplicating Config Parsing Between Commands
 
-**What:** Piping the entire capture stream directly to the API without chunking.
+**What people do:** Each command file reimplements its own config loading logic.
 
-**Why bad:** The Gemini Live API expects discrete chunks. A continuous stream without framing causes protocol errors or silent drops. Excessively large chunks increase latency.
+**Why it's wrong:** Config loading is already centralized in `src/config/loader.ts`. Duplicating it creates drift when the config schema changes.
 
-**Instead:** Buffer PCM data into fixed-size chunks (e.g., 100ms = 1600 samples × 2 bytes = 3200 bytes at 16kHz mono 16-bit) before encoding and sending.
-
----
-
-### Anti-Pattern 4: Blocking on WebSocket Response Before Sending More Audio
-
-**What:** Waiting for the AI to finish responding before capturing/sending more audio.
-
-**Why bad:** Creates a walkie-talkie feel. Gemini Live supports continuous streaming; capture and send should continue (or at minimum, not block the entire pipeline) even while a response is being received.
-
-**Instead:** Decouple capture and response handling. Use event-driven patterns. The AI client emits `audioChunk` events; audio capture emits `data` events. Neither waits for the other synchronously.
+**Do this instead:** All commands call the same `loadConfig()`. The `parseCliArgs()` helper is extended (not replaced) to handle new flags.
 
 ---
 
-## Scalability Considerations
+### Anti-Pattern 3: Over-abstracting the Provider Interface
 
-This is a single-call, single-user desktop tool. Scalability in the traditional sense is not relevant. However, relevant operational considerations:
+**What people do:** Design the AIProvider interface for every conceivable future provider — streaming, non-streaming, text-only, function-calling, etc.
 
-| Concern | Single Call (Target) | Notes |
-|---------|---------------------|-------|
-| Audio latency | < 2s round-trip | Dominated by Gemini API response time; minimize buffer sizes |
-| Session reconnection | Graceful, < 5s | Gemini Live sessions have time limits; implement auto-reconnect |
-| Resource cleanup | Complete on exit | Orphaned PA modules persist across reboots without cleanup |
-| WSL2 audio | Separate concern | WSL2 requires PulseAudio bridge or PipeWire config — document clearly |
+**Why it's wrong:** The interface is designed for one provider (Gemini Live) with one concrete usage pattern (realtime audio). Premature generalization produces an interface nothing can cleanly implement.
+
+**Do this instead:** Extract only the methods the orchestrator actually calls today: `connect()`, `sendAudio()`, `disconnect()`, `getState()`, and the six events already emitted. Future providers implement this or extend it with a versioned interface.
 
 ---
 
-## Build Order Implications
+### Anti-Pattern 4: Compiling TypeScript to Distribute
 
-Dependencies between components determine the implementation sequence:
+**What people do:** Set up a full `tsc` → `dist/` build pipeline and point `bin` at `dist/` for an internal tool.
 
-```
-Phase 1: Virtual Device Setup (no dependencies)
-  └── v4l2loopback kernel module setup
-  └── PulseAudio/PipeWire null-sink + virtual-source setup
-  └── Verify: devices visible in browser
+**Why it's wrong:** Adds CI complexity and a required build step before running or testing. This tool is currently installed from source, not published to npm.
 
-Phase 2: Video Feed (depends on Phase 1 — needs /dev/videoN)
-  └── ffmpeg subprocess feeding static image to v4l2loopback
-  └── Verify: virtual webcam shows placeholder image in Meet
-
-Phase 3: Audio Capture (depends on Phase 1 — needs null-sink monitor)
-  └── parec/pw-record subprocess → Node.js stream
-  └── Verify: PCM data flows when audio plays in browser
-
-Phase 4: AI API Integration (depends on Phase 3 — needs audio input)
-  └── Gemini Live WebSocket session
-  └── Send Phase 3 audio → receive AI audio responses
-  └── Verify: AI responds to captured speech (log responses, no output yet)
-
-Phase 5: Audio Output (depends on Phase 1 + Phase 4)
-  └── pacat/pw-play subprocess writing AI audio to virtual mic
-  └── Verify: virtual mic carries AI speech back into Meet
-
-Phase 6: End-to-End + Persona Config (depends on all prior phases)
-  └── Persona system prompt loaded from config file
-  └── Full pipeline: Meet audio → AI → Meet mic
-  └── Verify: complete bidirectional conversation works
-```
-
-**Key dependency constraint:** Phase 3 (audio capture) must be validated independently before Phase 4 (AI integration). Debugging a combined "capture + AI" phase is significantly harder than debugging each in isolation.
-
----
-
-## WSL2-Specific Considerations
-
-WSL2 does not have a kernel with native PulseAudio support by default. Audio on WSL2 typically routes through one of:
-
-1. **PulseAudio TCP server on Windows** — WSL2 processes connect to a PA server running on the Windows host. Common setup, requires configuring `PULSE_SERVER` env var.
-2. **PipeWire in WSL2** — Newer WSL2 kernels (5.15+, which this project uses) may support PipeWire with the WSLg audio integration.
-3. **WSLg (Windows Subsystem for Linux GUI)** — Microsoft's WSLg includes audio support via PulseAudio socket at `/tmp/PulseServer`. Check `$PULSE_SERVER` or `/tmp/.pulse-*` in WSL2 environment.
-
-**Recommendation:** Test on WSL2 early. The virtual device setup phase (Phase 1) will surface WSL2-specific audio issues before the full pipeline is built.
-
-**Confidence:** MEDIUM — WSL2 audio landscape changes frequently. Verify current WSLg audio behavior.
+**Do this instead:** Use `#!/usr/bin/env tsx` in the bin shebang for development. Add the compiled distribution only when the package is ready for public npm publish (a future milestone). Keep `npm run build` (tsc) for type-checking only.
 
 ---
 
 ## Sources
 
-- Training knowledge: Linux PulseAudio/PipeWire virtual device patterns (HIGH confidence for well-established patterns)
-- Training knowledge: v4l2loopback module usage (HIGH confidence — API stable for years)
-- Training knowledge: Gemini Live API WebSocket protocol (MEDIUM confidence — verify message schema against current docs at https://ai.google.dev/api/multimodal-live)
-- Training knowledge: Node.js child_process streaming patterns (HIGH confidence)
-- Training knowledge: WSL2 audio routing (MEDIUM confidence — verify current WSLg behavior)
+- Direct inspection of existing codebase (`src/index.ts`, `src/ai/session.ts`, `src/config/loader.ts`, `src/cli/test-devices.ts`, `package.json`, all module indices)
+- Commander.js ecosystem: [pkgpulse CLI comparison](https://www.pkgpulse.com/cli-nodejs-commander-yargs-oclif), [leapcell Commander guide](https://leapcell.io/blog/crafting-robust-node-js-clis-with-oclif-and-commander-js) — MEDIUM confidence (web sources)
+- tsx shebang pattern: [tsx npm page](https://www.npmjs.com/package/tsx), [2ality ESM packaging guide](https://2ality.com/2025/02/typescript-esm-packages.html) — HIGH confidence (official/authoritative)
+- TypeScript provider interface pattern: standard structural typing, training knowledge — HIGH confidence
 
-**Note:** WebSearch and WebFetch tools were unavailable during this research session. All findings are from training data (knowledge cutoff ~August 2025). The Gemini Live API message schema in particular should be verified against current official documentation before implementation.
+---
+
+*Architecture research for: AI Meet Agent v1.1 CLI tooling and provider abstraction*
+*Researched: 2026-03-26*

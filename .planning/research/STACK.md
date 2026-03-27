@@ -1,214 +1,221 @@
-# Technology Stack
+# Stack Research
 
-**Project:** AI Meet Agent
-**Researched:** 2026-03-25
-**Research Mode:** Ecosystem — standard stack for virtual audio/video devices with AI conversation pipeline on Linux/WSL2, Node.js/TypeScript
+**Domain:** Node.js CLI tooling, npm packaging, AI provider abstraction
+**Researched:** 2026-03-26
+**Confidence:** HIGH
 
----
+## Scope Note
 
-> **IMPORTANT RESEARCH NOTE:** All web research tools (WebSearch, WebFetch, Bash) were unavailable during this research session. All findings are drawn from training data (knowledge cutoff August 2025). Confidence levels reflect this limitation — all MEDIUM/LOW items MUST be verified before implementation begins. Items marked HIGH are stable, well-established technologies unlikely to have changed.
+This replaces the v1.0 initial research. The existing validated stack is NOT re-researched:
 
----
+- Node.js >=22, TypeScript 5.4+, tsx dev runner
+- @google/genai ^1.46.0 (Gemini Live API)
+- fluent-ffmpeg, Zod, v4l2loopback, PulseAudio, WSL2 bridge
 
-## Recommended Stack
-
-### AI Conversation API
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Google Gemini Live API (`@google/genai`) | `^1.x` (verify on npmjs.com) | Realtime bidirectional audio streaming — send participant audio, receive AI voice response | The only Google API that supports true streaming bidirectional audio with sub-2s latency suitable for conversation. Cloud STT+TTS pipeline adds 2-4s round-trip latency due to HTTP request/response overhead — not suitable for conversational feel. Gemini Live uses persistent WebSocket with audio in/out. |
-
-**Confidence: MEDIUM** — Gemini Live API launched mid-2024 and was the clear choice for realtime audio as of mid-2025. Verify the npm package name and current version against https://ai.google.dev/api/multimodal-live before coding.
-
-**What NOT to use:**
-- `@google-cloud/speech` + `@google-cloud/text-to-speech` pipeline: Two-phase HTTP pipeline. Each leg adds 500ms-1500ms. Total round-trip typically 2-4s. Fails the sub-2s conversational feel requirement.
-- OpenAI Realtime API: Works well, but project context specifies Google AI integration and Google Meet ecosystem alignment.
-- Deepgram + ElevenLabs: Lower latency voice pipeline, but fragmented (two vendors), no integrated LLM reasoning layer without additional orchestration.
+This document covers ONLY additions needed for v1.1: installable CLI tool, file-based config, graceful error handling, AI provider abstraction.
 
 ---
 
-### Virtual Video Device (Camera)
+## Recommended Stack Additions
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `v4l2loopback` (kernel module) | `0.12.x` or `0.13.x` | Creates a `/dev/videoN` device that appears as a real webcam in browsers and apps | The standard Linux solution for virtual cameras. Used by OBS Studio, ManyCam, and every major virtual camera product. Browser (Chromium/Chrome) enumerates it as a real `getUserMedia` camera source. |
-| `ffmpeg` (system binary) | `6.x` or `7.x` | Write JPEG/MJPEG frames or raw video into the v4l2loopback device | Mature, reliable tool for piping video data into virtual devices. Simpler than writing raw V4L2 ioctls directly from Node.js. |
-| `node-ffmpeg` or `fluent-ffmpeg` | `^2.1.x` | Node.js wrapper to spawn and control ffmpeg processes | Thin process wrapper; no native bindings means no build issues. |
+### Core: CLI Framework
 
-**Confidence: HIGH** — v4l2loopback is the canonical Linux virtual camera kernel module, unchanged in approach for 10+ years.
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| commander | ^14.0.3 | Subcommand routing, help generation, option validation | Industry standard (62M weekly downloads). v14.0.3 is current (Jan 2026); v14 requires Node >=20, matching our >=22 constraint. Nested subcommands, option/command groups in help, no external dependencies, native TypeScript types. |
 
-**WSL2 caveat (CRITICAL):** v4l2loopback requires a Linux kernel module. WSL2 ships a Microsoft-patched kernel that does NOT include `v4l2loopback` out of the box. Options:
-1. Compile v4l2loopback against the WSL2 kernel headers and load with `insmod` — works but requires rebuild on kernel updates.
-2. Use a custom WSL2 kernel with v4l2loopback pre-compiled — more stable long-term.
-3. Accept that WSL2 users need a one-time kernel module setup step, documented in the README.
+Commander is the right choice over yargs (verbose API, middleware model adds complexity for our use case) and oclif (framework-level, designed for plugin ecosystems — overkill for a single binary). The project already has `src/cli/test-devices.ts` — commander slots directly into that approach.
 
-**Confidence of WSL2 caveat: HIGH** — This is a known, well-documented limitation of WSL2's kernel model.
+### Core: Build Tool for Distribution
 
-**What NOT to use:**
-- Direct V4L2 ioctl syscalls from Node.js: Overly complex, fragile, and unnecessary when ffmpeg handles the device write reliably.
-- OBS VirtualCam plugin: Requires OBS to be running, heavy dependency.
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| tsdown | ^0.14.0 | Bundle TypeScript to distributable JS; auto-handles shebang, ESM output | tsup is no longer actively maintained (last meaningful update was tsup 8.5.1; maintainers now direct users to tsdown). tsdown is the Rolldown-powered successor from the void(0)/Vite team. ESM-first by design (matches `"type": "module"`), auto-detects hashbang comments in entry files and marks output as executable. |
 
----
+**Why a bundler is needed at all:** The current `tsx`-based dev shebang (`#!/usr/bin/env -S npx tsx`) requires tsx to be installed on the consumer's machine. For `npm install -g` and `npx` distribution, the output must be plain JS with `#!/usr/bin/env node`. A bundler also tree-shakes unused code and eliminates the runtime tsx dependency for end-users.
 
-### Virtual Audio Device (Microphone + Speaker)
+### Core: File-Based Config Discovery
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| PipeWire (system daemon) | `1.x` (shipped with Ubuntu 22.04+, Fedora 35+) | Modern audio server replacing PulseAudio; creates virtual audio nodes | PipeWire is the current standard on all major 2024+ Linux distros. Supports both PulseAudio and JACK compatibility layers. Lower latency than PulseAudio. |
-| `pw-loopback` / `pactl load-module module-null-sink` | — (system tools) | Create null sink (virtual speaker) and loopback source (virtual mic) | Standard pattern: Create a null sink; its monitor becomes the virtual mic input that browsers see via `getUserMedia`. Capture the null sink's monitor to intercept what the browser sends out (Meet participant audio). |
-| `node-audio` or `naudiodon` | `^2.x` | Node.js PortAudio bindings for reading/writing PCM audio streams | PortAudio provides cross-platform low-level PCM access. Needed to read audio from the virtual sink monitor and write AI-generated audio back. |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| cosmiconfig | ^9.0.0 | Discover and load `ai-meet.config.yml`, `ai-meet.config.json`, or config in `package.json` | Handles search-and-load across all standard config file locations. v9.0.0 (Nov 2024) adds: XDG-compliant global config paths on Linux, `$import` for config inheritance, native async/ESM loading. YAML support is built-in — no extra loader needed. |
 
-**Confidence: MEDIUM** — PipeWire as the primary audio server is HIGH confidence (it ships by default on Ubuntu 22.04 LTS and Ubuntu 24.04 LTS). The specific Node.js binding (`naudiodon` vs others) needs verification — this space has some churn.
+v9's default search strategy is `none` (current directory only, no traversal). Use `searchStrategy: 'project'` to restore git-root traversal behavior, which is appropriate for our use case (per-project config discovery).
 
-**WSL2 caveat (CRITICAL):** WSL2 has limited audio hardware support. PulseAudio/PipeWire can run inside WSL2 as a user-space daemon, but the socket path and DBUS environment may need explicit configuration. The Google Chrome/Chromium browser running inside WSL2 (via WSLg) should be able to enumerate PulseAudio virtual devices, but this is a less-tested path. **Recommend:** Test audio device visibility in Chrome on WSL2 early in development — this is the highest-risk integration point.
+### Core: Meeting Notes / Role File Parsing
 
-**What NOT to use:**
-- JACK alone: Too low-level, poor ecosystem for this use case, not browser-visible.
-- ALSA loopback (`snd-aloop`) without PulseAudio/PipeWire layer: ALSA devices are not typically exposed to browsers; browsers use PulseAudio/PipeWire for `getUserMedia`.
-- PulseAudio directly (without PipeWire compatibility): Still works on older systems, but PipeWire is the modern standard. Use PipeWire with its PulseAudio compatibility layer — commands are identical.
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| yaml | ^2.7.0 | Parse `--notes meeting-brief.yaml` and `--role persona.yaml` files | Ships its own TypeScript types (no `@types/yaml`). No external dependencies. Full YAML 1.2 spec support. The `yaml` package (eemeli) is preferred over `js-yaml` specifically because of first-party types and broader spec coverage. |
 
----
+**Scope boundary:** cosmiconfig handles structured device/AI config (what is currently in `src/config/schema.ts`). `yaml` handles freeform prose documents passed via flags — meeting context briefs and persona definitions that users write in their own style.
 
-### Audio Pipeline in Node.js
+### Core: CLI Output and UX
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `naudiodon` | `^2.x` | PCM audio capture and playback via PortAudio bindings | Native addon with pre-built binaries (node-pre-gyp). Stable, commonly used for real-time audio in Node.js. Provides low-latency stream access. |
-| Node.js `stream` (built-in) | Node 22 | Pipe audio data between capture, AI API, and playback | Standard streams keep the pipeline composable and backpressure-aware. |
-| `ws` | `^8.x` | WebSocket client for Gemini Live API persistent connection | Gemini Live API is WebSocket-based. The official `@google/genai` SDK wraps this, but knowing the underlying transport helps with debugging. |
+| Technology | Version | Purpose | Why Recommended |
+|------------|---------|---------|-----------------|
+| chalk | ^5.3.0 | Colored terminal output for errors, warnings, status | v5.6.2 is current. ESM-only since v5.0.0, compatible with `"type": "module"`. Auto-detects color support (NO_COLOR, TERM, CI environments). Needed to make error messages actionable — red for fatal errors, yellow for missing dependencies, green for successful startup. |
+| ora | ^9.3.0 | Spinner feedback during device initialization and AI connection | v9.3.0 is current. ESM-only (compatible). Shows "Initializing virtual devices..." and "Connecting to Gemini..." during the multi-second startup sequence. Handles TTY detection — silently degrades in non-interactive contexts (CI, pipes). |
 
-**Confidence: MEDIUM** — `naudiodon` is well-established but check for Node.js 22 compatibility. The `ws` library is HIGH confidence as the de-facto WebSocket client.
+### AI Provider Abstraction: No New Library Needed
 
-**Alternative worth knowing:** `node-portaudio` (different package, same PortAudio C library). Evaluate build success on the target system — native addons occasionally have node-gyp issues on WSL2.
+The provider abstraction is a TypeScript design pattern, not a library addition.
+
+**Why NOT Vercel AI SDK:** The Vercel AI SDK (`ai` package) abstracts text and speech generation via request/response patterns. It does not support Gemini Live API's bidirectional WebSocket streaming (GitHub issue #4082, open as of March 2026). Our audio pipeline is real-time PCM over persistent WebSocket — adding the AI SDK would require replacing the working audio pipeline with a regression in capability.
+
+**The right approach:** Define an `AIProvider` interface in `src/ai/types.ts`, implement `GeminiProvider` wrapping the existing `GeminiLiveSession`, export a `createProvider(config)` factory from `src/ai/index.ts`. Pure TypeScript, zero new dependencies.
 
 ---
 
-### Core Framework & TypeScript
+## Supporting Libraries Summary
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Node.js | `22.x LTS` | Runtime | Current LTS. Native fetch, `--watch` mode, stable ESM. |
-| TypeScript | `^5.4` | Type safety across async audio/stream pipeline | Complex async pipeline with multiple typed message formats (Gemini API responses, audio chunks, device events) benefits greatly from TypeScript. |
-| `tsx` | `^4.x` | Run TypeScript directly in development | Faster DX than `ts-node`. Uses esbuild internally. |
-| `tsup` | `^8.x` | Bundle TypeScript for production | Simple, esbuild-based bundler. Right-sized for a Node.js CLI/service. |
-
-**Confidence: HIGH** — These are stable, widely-used tools.
-
----
-
-### Google AI SDK
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `@google/genai` | `^1.x` (verify) | Official Google AI Node.js SDK, includes Gemini Live API support | Google consolidated their Node.js AI SDKs. This package replaced `@google-cloud/vertexai` and `generativeai` packages for many use cases. Gemini Live API (multimodal live/realtime) is exposed through this package. |
-
-**Confidence: MEDIUM** — Package name and API surface need verification. Google's SDK naming has changed multiple times. Check https://npmjs.com/package/@google/genai for current version and changelog.
-
-**Verify specifically:**
-- Whether `@google/genai` exposes the Gemini Live (`BidiGenerateContent`) WebSocket API in Node.js (not just browser).
-- Audio input/output format requirements (PCM 16kHz mono LINEAR16 is typical for Google audio APIs, but verify for Live API).
-- Whether server-side (non-browser) usage of Gemini Live API is available at all — early releases were browser/web SDK only.
+| Library | Version | Purpose | Required? |
+|---------|---------|---------|-----------|
+| commander | ^14.0.3 | `ai-meet start`, `ai-meet list-devices`, `ai-meet test-audio` | Required |
+| tsdown | ^0.14.0 | `npm run build` → `dist/cli.js` for distribution | Required |
+| cosmiconfig | ^9.0.0 | Load `ai-meet.config.yml` / per-project config | Required |
+| yaml | ^2.7.0 | Parse `--notes` and `--role` freeform files | Required |
+| chalk | ^5.3.0 | Actionable error messages with color | Required |
+| ora | ^9.3.0 | Startup progress spinner | Recommended |
 
 ---
 
-### Configuration & CLI
+## Development Tools (additions)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `dotenv` | `^16.x` | Load API keys from `.env` | Standard approach. Never hardcode API keys. |
-| `zod` | `^3.x` | Runtime validation of config/persona JSON | Validate persona config files at startup with helpful error messages. |
-| `commander` | `^12.x` | CLI argument parsing | Simple, typed CLI for `--persona`, `--camera-device`, `--audio-sink` flags. |
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| tsdown | Distribution build (`npm run build`) | Dev dependency only; end-users get plain JS |
+| `npm link` | Test global install locally during dev | `npm link` → `ai-meet start`; `npm unlink -g ai-meet-agent` when done |
 
-**Confidence: HIGH** — All stable, widely-used packages.
+The existing `tsx` dev runner is retained as-is for `npm run dev`. tsdown is build-only and does not affect the development workflow.
+
+---
+
+## Installation
+
+```bash
+# Runtime dependencies
+npm install commander cosmiconfig yaml chalk ora
+
+# Dev dependency (build only)
+npm install -D tsdown
+```
+
+---
+
+## package.json Changes Required
+
+Three changes needed to turn the private app into an installable CLI:
+
+```json
+{
+  "name": "ai-meet-agent",
+  "private": false,
+  "bin": {
+    "ai-meet": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsdown src/cli.ts --format esm --out-dir dist"
+  }
+}
+```
+
+**Critical:** Remove `"private": true` to enable `npm publish` and `npm install -g`. The `bin` field wires the `ai-meet` command to the built output. The entry file `src/cli.ts` must have `#!/usr/bin/env node` as its literal first line — tsdown detects this and marks the output as executable automatically.
 
 ---
 
 ## Alternatives Considered
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| AI Audio API | Gemini Live API | Cloud STT + TTS pipeline | 2-4s round-trip latency; fails conversational feel requirement |
-| AI Audio API | Gemini Live API | OpenAI Realtime API | Works well technically, but project specifies Google AI; avoid splitting vendors |
-| Virtual Mic | PipeWire null-sink + loopback | ALSA snd-aloop | ALSA not visible to browsers via getUserMedia; requires PulseAudio/PipeWire bridge anyway |
-| Virtual Camera | v4l2loopback + ffmpeg | GStreamer v4l2sink | GStreamer is heavier but valid. ffmpeg is simpler for the static image use case. |
-| Node.js Audio | naudiodon (PortAudio) | `node-soundio` (libsoundio) | naudiodon has broader Linux device support and more community usage for this pattern |
-| Node.js Audio | naudiodon (PortAudio) | Web Audio API via headless browser | Enormous complexity — spawning a headless browser just for audio capture defeats the purpose |
-| TypeScript Runner | tsx | ts-node | tsx is significantly faster (esbuild vs tsc transform); ts-node has legacy quirks |
-| Bundler | tsup | esbuild directly | tsup wraps esbuild with sane defaults; less configuration |
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| commander | yargs | When you need middleware-style option processing or coerce functions on positional arguments |
+| commander | oclif | When building a plugin-based CLI framework with multiple contributors and extensibility requirements |
+| tsdown | tsup | tsup is no longer actively maintained — no reason to choose it for new work |
+| tsdown | esbuild directly | When tsdown's preset behavior doesn't cover a specific edge case in the build pipeline |
+| tsdown | tsc only | Only if the binary has no external deps to bundle and you manually handle shebang injection |
+| cosmiconfig | manual `fs.readFile` | Only if exactly one config file location is acceptable and no discovery logic is needed |
+| yaml (eemeli) | js-yaml | js-yaml is fine but requires `@types/js-yaml` separately; the `yaml` package is TypeScript-first |
+| chalk | kleur | kleur is lighter, but chalk has better ecosystem integration and color support auto-detection |
+| ora | cli-spinners | cli-spinners is raw spinner frame data; ora is the complete component — use ora unless building custom spinner logic |
+| Manual AIProvider interface | Vercel AI SDK | Only if/when the AI SDK adds bidirectional streaming WebSocket support for Gemini Live API |
 
 ---
 
-## Dependency Installation
+## What NOT to Use
 
-```bash
-# Core runtime dependencies
-npm install @google/genai naudiodon fluent-ffmpeg ws dotenv zod commander
-
-# Development dependencies
-npm install -D typescript tsx tsup @types/node @types/fluent-ffmpeg @types/ws
-
-# TypeScript config
-npx tsc --init
-```
-
-**System dependencies (Linux/WSL2):**
-```bash
-# Kernel module for virtual camera
-sudo apt-get install v4l2loopback-dkms v4l2loopback-utils
-
-# Load the module (creates /dev/video0 or next available)
-sudo modprobe v4l2loopback video_nr=10 card_label="AI Meet Agent" exclusive_caps=1
-
-# ffmpeg for video writing
-sudo apt-get install ffmpeg
-
-# PipeWire (usually pre-installed on Ubuntu 22.04+)
-sudo apt-get install pipewire pipewire-pulse wireplumber
-
-# PortAudio development headers (needed for naudiodon build)
-sudo apt-get install libportaudio2 portaudio19-dev
-```
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Vercel AI SDK (`ai` package) | Does not support Gemini Live API's bidirectional WebSocket streaming (GitHub issue #4082 open). Adding it would require replacing the working audio pipeline. | Manual `AIProvider` TypeScript interface wrapping `@google/genai` |
+| tsup | No longer actively maintained; maintainers redirect to tsdown | tsdown |
+| ts-node | Heavier than tsx, slower startup, historically worse ESM support, effectively superseded | tsx (already in project) |
+| chalk v4 | v4 is the CJS version; project uses `"type": "module"`, so v4 would be a version downgrade. v5 (ESM) is the correct choice. | chalk ^5.3.0 |
+| cosmiconfig-typescript-loader | Only needed for `.config.ts` TypeScript config files. Our config format is YAML/JSON — this extra loader is unnecessary. | cosmiconfig alone |
+| inquirer / clack / prompts | Config comes from files and flags, not interactive prompts. Interactive prompts break scripted use and automation. | File-based config + clear chalk-formatted error messages with fix instructions |
+| `dotenv` (direct calls in app code) | tsx `--env-file=.env` already handles env loading for dev; API keys stay in environment for production. Adding `dotenv` calls in production code couples the app to file-based secrets. | Environment variables via shell / process environment |
 
 ---
 
-## WSL2-Specific Setup Notes
+## Stack Patterns by Scenario
 
-WSL2 requires special handling for both virtual devices:
+**`ai-meet start --notes brief.yaml --role persona.yaml`:**
+1. commander parses flags, validates required args
+2. cosmiconfig finds and loads `ai-meet.config.yml` from project root
+3. Zod validates the merged config (already in place in `src/config/`)
+4. yaml reads `brief.yaml` and `persona.yaml` into strings
+5. ora shows "Initializing devices..." while virtual devices start
+6. chalk formats any startup failures with actionable fix text
+7. AIProvider interface routes to GeminiProvider
 
-**Camera (v4l2loopback on WSL2):**
-```bash
-# Install WSL2 kernel headers
-sudo apt-get install linux-headers-$(uname -r)
-# If headers not found (common in WSL2):
-# Must compile against Microsoft's WSL2 kernel source
-# See: https://github.com/microsoft/WSL2-Linux-Kernel
-```
+**`ai-meet list-devices`:**
+1. commander routes to list-devices subcommand
+2. No config loading required — runs device enumeration directly
+3. chalk formats the output table (device names, indices, status)
 
-**Audio (PipeWire/PulseAudio on WSL2):**
-- WSLg (Windows Subsystem for Linux GUI, available in Windows 11) includes a PulseAudio socket forwarding mechanism.
-- Chrome running via WSLg should enumerate PulseAudio virtual devices.
-- If running headless (no WSLg), audio testing must happen on native Linux.
+**`ai-meet test-audio`:**
+1. commander routes to test-audio subcommand (replaces current `test-devices.ts` script)
+2. ora shows test progress
+3. chalk reports pass/fail per device
 
-**Risk assessment:** WSL2 audio/video device plumbing is the highest-risk part of this stack. Early spike recommended before committing to architecture.
+**For global install / npx:**
+1. User runs `npm install -g ai-meet-agent` or `npx ai-meet-agent start`
+2. npm resolves `bin.ai-meet` → `dist/cli.js`
+3. `#!/usr/bin/env node` shebang means no tsx required on consumer machine
+4. All deps are bundled by tsdown
 
 ---
 
-## Versions to Verify Before Coding
+## Version Compatibility
 
-The following need version verification against current npm/official docs before implementation:
-
-| Package | Verify At | Why |
-|---------|-----------|-----|
-| `@google/genai` | https://npmjs.com/package/@google/genai | Package name may have changed; Live API availability in Node.js needs confirmation |
-| `naudiodon` | https://npmjs.com/package/naudiodon | Check Node.js 22 compatibility and if pre-built binaries exist |
-| `v4l2loopback` | https://github.com/umlaeute/v4l2loopback | Check if DKMS package in apt is current enough |
-| Gemini Live audio format | https://ai.google.dev/api/multimodal-live | Confirm PCM format requirements (sample rate, bit depth, channels) |
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| commander@14.x | Node.js >=20 | Matches project's `engines.node: >=22` requirement |
+| chalk@5.x | `"type": "module"` | ESM-only; project already has `"type": "module"` — no conflict |
+| ora@9.x | `"type": "module"` | ESM-only; compatible |
+| cosmiconfig@9.x | Node.js >=18 | Compatible with >=22 |
+| yaml@2.x | Node.js >=14 | Compatible with >=22; ships TypeScript types |
+| tsdown@0.14.x | TypeScript >=5.0 | Compatible with project's TypeScript ^5.4.0 |
 
 ---
 
 ## Sources
 
-- Training data (knowledge cutoff August 2025) — all items require independent verification
-- **MEDIUM confidence items require verification** before phase planning commits to them
-- Project context: `/home/chris/projects/ai-meet-agent/.planning/PROJECT.md`
-- External tools unavailable during this research session (WebSearch, WebFetch, Bash denied)
+- [commander npm](https://www.npmjs.com/package/commander) — v14.0.3 current, Node.js >=20 requirement (HIGH)
+- [GitHub: tj/commander.js releases](https://github.com/tj/commander.js/releases) — v14 changelog; v15 planned May 2026 (HIGH)
+- [tsdown official docs](https://tsdown.dev/guide/) — ESM-first, Rolldown-powered, tsup migration guide (HIGH)
+- [tsdown GitHub: rolldown/tsdown](https://github.com/rolldown/tsdown) — confirmed tsup no longer maintained, tsdown as successor (HIGH)
+- [cosmiconfig v9.0.0 release](https://github.com/cosmiconfig/cosmiconfig/releases/tag/v9.0.0) — Nov 2024 release, XDG support, YAML built-in (HIGH)
+- [tsx shell scripts docs](https://tsx.is/shell-scripts) — shebang support, `#!/usr/bin/env -S npx tsx` pattern (HIGH)
+- [chalk releases: chalk/chalk](https://github.com/chalk/chalk/releases) — v5.6.2 current, ESM-only since v5.0.0 (HIGH)
+- [ora npm](https://www.npmjs.com/package/ora) — v9.3.0 current, ESM-only (HIGH)
+- [yaml npm](https://www.npmjs.com/package/yaml) — TypeScript-first, no external deps (HIGH)
+- [Vercel AI SDK GitHub issue #4082](https://github.com/vercel/ai/issues/4082) — Gemini Live API not supported in AI SDK (MEDIUM — issue open as of research date)
+- WebSearch "tsup current version npm 2026" — tsup 8.5.1 confirmed, maintainers recommend tsdown (MEDIUM)
+
+---
+
+*Stack research for: CLI tooling, npm packaging, file-based config, AI provider abstraction*
+*Researched: 2026-03-26*
