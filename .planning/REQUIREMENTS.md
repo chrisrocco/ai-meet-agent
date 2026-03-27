@@ -3,59 +3,99 @@
 **Defined:** 2026-03-25
 **Core Value:** Bidirectional realtime audio conversation through a Google Meet call — someone speaks, the AI twin hears and responds naturally.
 
-## v1 Requirements
+## v1.0 Requirements (Validated)
 
-Requirements for initial release. Each maps to roadmap phases.
+All v1.0 requirements shipped and verified.
 
 ### Virtual Devices
 
-- [x] **VDEV-01**: Virtual camera device appears as selectable webcam in browser (e.g. "Mock Input")
-- [x] **VDEV-02**: Virtual microphone device appears as selectable mic in browser (e.g. "Mock Input")
-- [x] **VDEV-03**: Static placeholder image fed through virtual camera as video stream
+- [x] **VDEV-01**: Virtual camera device appears as selectable webcam in browser — Phase 1
+- [x] **VDEV-02**: Virtual microphone device appears as selectable mic in browser — Phase 1
+- [x] **VDEV-03**: Static placeholder image fed through virtual camera as video stream — Phase 3
 
 ### Audio Pipeline
 
-- [x] **AUDI-01**: Capture incoming audio from Google Meet participants via virtual audio routing
-- [x] **AUDI-02**: Stream captured audio to Google AI API in realtime (chunked PCM/WebSocket)
-- [x] **AUDI-03**: Receive AI-generated audio responses and play through virtual microphone into Meet
-- [x] **AUDI-04**: Echo cancellation via architectural sink isolation — AI output does not loop back into capture path
-- [x] **AUDI-05**: Low-latency audio round-trip under 2 seconds for conversational feel
+- [x] **AUDI-01**: Capture incoming audio from Google Meet participants — Phase 2
+- [x] **AUDI-02**: Stream captured audio to Google AI API in realtime — Phase 4
+- [x] **AUDI-03**: Receive AI-generated audio responses and play through virtual mic — Phase 4
+- [x] **AUDI-04**: Echo cancellation via architectural sink isolation — Phase 2
+- [x] **AUDI-05**: Low-latency audio round-trip under 2 seconds — Phase 4
 
 ### AI Conversation
 
-- [x] **CONV-01**: Configurable persona via system prompt (name, role, background, meeting context)
-- [x] **CONV-02**: Per-meeting context injection (agenda, attendee bios prepended to system prompt)
-- [x] **CONV-03**: Conversation memory within session — AI remembers earlier parts of the call
+- [x] **CONV-01**: Configurable persona via system prompt — Phase 4
+- [x] **CONV-02**: Per-meeting context injection — Phase 5
+- [x] **CONV-03**: Conversation memory within session — Phase 5
 
 ### Operator Experience
 
-- [x] **OPER-01**: Operator can monitor the call from behind the browser (hear participants + AI)
-- [x] **OPER-02**: Live transcript display showing what participants said and what AI responded
+- [x] **OPER-01**: Operator can monitor the call — Phase 5
+- [x] **OPER-02**: Live transcript display — Phase 5
 
 ### Platform
 
-- [x] **PLAT-01**: Works on Linux (native) with PulseAudio/PipeWire and v4l2loopback
-- [x] **PLAT-02**: Works on Linux (WSL2) with appropriate device routing for the environment
+- [x] **PLAT-01**: Works on Linux (native) — Phase 1
+- [x] **PLAT-02**: Works on Linux (WSL2) — Phase 1/6
 
-## v2 Requirements
+## v1.1 Requirements
 
-Deferred to future release. Tracked but not in current roadmap.
+Requirements for Cleaner API milestone. Each maps to roadmap phases.
+
+### CLI Packaging
+
+- [ ] **CLI-01**: User can install ai-meet globally via `npm install -g`
+- [ ] **CLI-02**: User can run `ai-meet --version` to see installed version
+- [ ] **CLI-03**: User can run `ai-meet --help` to see available subcommands
+- [ ] **CLI-04**: User can run `npx ai-meet start` without global install
+
+### Subcommands
+
+- [ ] **CMD-01**: User can run `ai-meet start` to launch a meeting session
+- [ ] **CMD-02**: User can run `ai-meet start --help` to see start-specific flags
+- [ ] **CMD-03**: User can run `ai-meet list-devices` to see available audio/video devices
+- [ ] **CMD-04**: User can run `ai-meet test-audio` to verify device setup before a call
+
+### Config
+
+- [ ] **CFG-01**: User can pass `--config <path>` to specify config file location
+- [ ] **CFG-02**: User can pass `--notes <path>` to load meeting context from a markdown file
+- [ ] **CFG-03**: User can pass `--role <path>` to load persona from a file
+
+### Error Handling
+
+- [ ] **ERR-01**: Missing dependencies (ffmpeg, VB-Cable) show actionable fix instructions
+- [ ] **ERR-02**: Config validation errors name the specific field and expected value
+- [ ] **ERR-03**: Critical failures (audio/AI) exit with clear message; degraded failures (video/monitor) warn and continue
+
+### Provider Abstraction
+
+- [ ] **PROV-01**: AI session logic uses a RealtimeAudioProvider interface, not Gemini directly
+- [ ] **PROV-02**: GeminiProvider wraps existing GeminiLiveSession without modifying it
+
+## Future Requirements
+
+Deferred to future milestones. Tracked but not in current roadmap.
+
+### Additional Providers
+
+- **PROV-03**: User can select OpenAI Realtime API as an alternative provider
+- **PROV-04**: User can select a local model as a provider
 
 ### Audio Enhancement
 
-- **AUDI-06**: Voice Activity Detection — AI knows when to speak vs listen, prevents talking over others
-- **AUDI-07**: Noise suppression on captured audio before sending to AI API
+- **AUDI-06**: Voice Activity Detection
+- **AUDI-07**: Noise suppression on captured audio
 
 ### AI Conversation
 
-- **CONV-04**: Graceful silence / hold behavior — AI only outputs audio when it has a turn to speak
-- **CONV-05**: Configurable response style (formal/casual/brief/verbose)
-- **CONV-06**: Wake word / activation trigger — AI only responds after hearing its name
+- **CONV-04**: Graceful silence / hold behavior
+- **CONV-05**: Configurable response style
+- **CONV-06**: Wake word / activation trigger
 
 ### Operator Experience
 
-- **OPER-03**: Operator override / intervene capability — inject content into AI's response
-- **OPER-04**: Auto-mute when operator intervenes physically
+- **OPER-03**: Operator override / intervene capability
+- **OPER-04**: Auto-mute when operator intervenes
 - **OPER-05**: Session summary generation at call end
 
 ### Platform
@@ -70,12 +110,11 @@ Deferred to future release. Tracked but not in current roadmap.
 | AI-generated video / avatar | High latency, GPU-intensive, not needed for audio twin |
 | Voice cloning / voice matching | Legally and ethically fraught, high complexity |
 | Multi-call support | Device routing ambiguity, process isolation complexity |
-| Cloud deployment / SaaS mode | Audio device virtualization in cloud is non-trivial |
-| Persistent conversation storage | Privacy risk, scope creep, not needed for live interaction |
-| Full Web UI / control panel | Over-engineering for v1; CLI + config file is faster |
-| Calendar integration / auto-scheduling | OAuth complexity, not core to twin experience |
-| Real-time sentiment analysis | UI complexity for marginal v1 value |
-| Mobile support | Desktop Linux only |
+| Plugin system for providers | Over-engineering; interface + concrete implementations handles realistic cases |
+| YAML config format | JSON with Zod validation works; adds parse dependency without solving a real problem |
+| Remote config from URL | Adds network dependency and security surface; single-user tool |
+| Interactive init wizard | Scope overhead; config template achieves same outcome faster |
+| Hot-reload config | Audio pipeline is stateful; restart is the correct path |
 
 ## Traceability
 
@@ -83,27 +122,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VDEV-01 | Phase 1 | In Progress (device layer built; browser verification in plan 04) |
-| VDEV-02 | Phase 1 | In Progress (device layer built; browser verification in plan 04) |
-| VDEV-03 | Phase 3 | Complete |
-| AUDI-01 | Phase 2 | Complete |
-| AUDI-02 | Phase 4 | Complete |
-| AUDI-03 | Phase 4 | Complete |
-| AUDI-04 | Phase 2 | Complete |
-| AUDI-05 | Phase 4 | Complete |
-| CONV-01 | Phase 4 | Complete |
-| CONV-02 | Phase 5 | Complete |
-| CONV-03 | Phase 5 | Complete |
-| OPER-01 | Phase 5 | Complete |
-| OPER-02 | Phase 5 | Complete |
-| PLAT-01 | Phase 1 | Complete |
-| PLAT-02 | Phase 1 | Complete |
+| CLI-01 | — | Pending |
+| CLI-02 | — | Pending |
+| CLI-03 | — | Pending |
+| CLI-04 | — | Pending |
+| CMD-01 | — | Pending |
+| CMD-02 | — | Pending |
+| CMD-03 | — | Pending |
+| CMD-04 | — | Pending |
+| CFG-01 | — | Pending |
+| CFG-02 | — | Pending |
+| CFG-03 | — | Pending |
+| ERR-01 | — | Pending |
+| ERR-02 | — | Pending |
+| ERR-03 | — | Pending |
+| PROV-01 | — | Pending |
+| PROV-02 | — | Pending |
 
 **Coverage:**
-- v1 requirements: 15 total
-- Mapped to phases: 15
-- Unmapped: 0
+- v1.1 requirements: 16 total
+- Mapped to phases: 0
+- Unmapped: 16 ⚠️
 
 ---
 *Requirements defined: 2026-03-25*
-*Last updated: 2026-03-26 after Phase 2 complete (AUDI-01, AUDI-04 complete)*
+*Last updated: 2026-03-26 after milestone v1.1 requirements definition*
