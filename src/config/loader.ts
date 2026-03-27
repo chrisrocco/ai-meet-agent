@@ -1,38 +1,25 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { fileURLToPath } from 'url';
 import { ConfigSchema, type Config } from './schema.js';
-
-// Walk up from src/config/ to find project root config.json
-const PROJECT_ROOT = resolve(fileURLToPath(import.meta.url), '../../..');
-
-/**
- * Parse CLI arguments for --config and --meeting flags.
- * @param argv - process.argv array
- * @returns Parsed CLI arguments
- */
-export function parseCliArgs(argv: string[]): { configPath?: string; meetingPath?: string; rolePath?: string } {
-  const args: { configPath?: string; meetingPath?: string; rolePath?: string } = {};
-  for (let i = 2; i < argv.length; i++) {
-    if (argv[i] === '--config' && argv[i + 1]) {
-      args.configPath = argv[++i];
-    } else if (argv[i] === '--meeting' && argv[i + 1]) {
-      args.meetingPath = argv[++i];
-    } else if (argv[i] === '--role' && argv[i + 1]) {
-      args.rolePath = argv[++i];
-    }
-  }
-  return args;
-}
+import { ConfigError } from '../errors/index.js';
 
 /**
  * Load and validate configuration.
- * - If configPath provided, reads that file (throws on missing/invalid).
- * - If no configPath, tries PROJECT_ROOT/config.json.
- * - If default config.json doesn't exist, returns full Zod defaults.
+ *
+ * Resolution order:
+ * 1. If `configPath` provided, reads that file (throws ConfigError on missing/invalid)
+ * 2. If no `configPath`, looks for `config.json` in current working directory
+ * 3. If default config.json doesn't exist, returns full Zod defaults
+ *
+ * Uses `process.cwd()` for default config lookup (not import.meta.url),
+ * so it works correctly when installed globally or run from any directory.
+ *
+ * @param configPath - Explicit path to config file (from --config flag)
+ * @returns Validated configuration object with Zod defaults applied
+ * @throws ConfigError if explicit config file missing or invalid
  */
 export function loadConfig(configPath?: string): Config {
-  const path = configPath ?? resolve(PROJECT_ROOT, 'config.json');
+  const path = configPath ?? resolve(process.cwd(), 'config.json');
 
   // If no explicit path and default doesn't exist, return full defaults
   if (!configPath && !existsSync(path)) {
@@ -43,11 +30,17 @@ export function loadConfig(configPath?: string): Config {
   try {
     raw = JSON.parse(readFileSync(path, 'utf8'));
   } catch (err) {
-    throw new Error(`Cannot read config file at ${path}: ${(err as Error).message}\nCreate a config.json in the project root.`);
+    throw new ConfigError(
+      `Cannot read config file at ${path}: ${(err as Error).message}`,
+      'Check the --config path exists and is valid JSON'
+    );
   }
   const result = ConfigSchema.safeParse(raw);
   if (!result.success) {
-    throw new Error(`Invalid config.json:\n${result.error.format()}`);
+    throw new ConfigError(
+      `Invalid config.json:\n${result.error.format()}`,
+      'Check config.json fields match the expected schema'
+    );
   }
   return result.data;
 }

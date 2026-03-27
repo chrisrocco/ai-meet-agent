@@ -137,36 +137,5 @@ describe('ConfigSchema full defaults', () => {
   });
 });
 
-describe('parseCliArgs', async () => {
-  // Import from loader
-  const { parseCliArgs } = await import('./loader.js');
-
-  it('parses --config and --meeting flags', () => {
-    const result = parseCliArgs(['node', 'index.js', '--config', 'c.json', '--meeting', 'm.md']);
-    assert.equal(result.configPath, 'c.json');
-    assert.equal(result.meetingPath, 'm.md');
-  });
-
-  it('returns undefined for missing flags', () => {
-    const result = parseCliArgs(['node', 'index.js']);
-    assert.equal(result.configPath, undefined);
-    assert.equal(result.meetingPath, undefined);
-  });
-
-  it('parses --config only', () => {
-    const result = parseCliArgs(['node', 'index.js', '--config', 'custom.json']);
-    assert.equal(result.configPath, 'custom.json');
-    assert.equal(result.meetingPath, undefined);
-  });
-
-  it('parses --meeting only', () => {
-    const result = parseCliArgs(['node', 'index.js', '--meeting', 'agenda.md']);
-    assert.equal(result.configPath, undefined);
-    assert.equal(result.meetingPath, 'agenda.md');
-  });
-
-  it('ignores flags without values', () => {
-    const result = parseCliArgs(['node', 'index.js', '--config']);
-    assert.equal(result.configPath, undefined);
-  });
-});
+// parseCliArgs tests removed — CLI argument parsing now handled by Commander.js
+// See src/cli/index.ts and src/cli/commands/start.ts
