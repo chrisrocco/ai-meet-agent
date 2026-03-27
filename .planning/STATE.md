@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Cleaner API
-status: defining_requirements
+status: roadmap_ready
 last_updated: "2026-03-26"
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 7 (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-26 — Milestone v1.1 started
+Status: Roadmap created, ready for Phase 7 planning
+Last activity: 2026-03-26 — v1.1 roadmap created (phases 7–9)
 
 ## Performance Metrics
 
@@ -80,6 +80,9 @@ Recent decisions affecting current work:
 - [Phase 03-02]: WSL2 OBS guide documents HTTP MJPEG Media Source approach — simpler than OBS WebSocket API, no extra plugin required
 - [Phase 06-wsl2-audio-relay]: Bridge error handlers use console.warn() not this.emit('error') — errors are non-fatal because bridges auto-restart on exit
 - [Phase 06-wsl2-audio-relay]: Relay listening log belongs only in WslAudioRelayServer.start() using config port — removed duplicate from index.ts
+- [v1.1 Roadmap]: Provider interface defined from consumer perspective (what start.ts needs), validated with MockProvider — prevents Gemini-shaped interface anti-pattern
+- [v1.1 Roadmap]: All library code must throw AgentError, never call process.exit() — exits belong only in src/cli/ command handlers
+- [v1.1 Roadmap]: Vercel AI SDK excluded — GitHub issue #4082 confirms no Gemini Live bidirectional WebSocket support; manual RealtimeAudioProvider interface is the correct approach
 
 ### Pending Todos
 
@@ -88,6 +91,7 @@ None yet.
 ### Roadmap Evolution
 
 - Phase 6 added: WSL2 Audio Relay Server — TCP relay bridging WSL2 Node.js ↔ VB-Cable on Windows (gap from Phase 2 client code expecting relay that was never built)
+- Phases 7–9 added: Milestone v1.1 Cleaner API — CLI packaging, provider abstraction, error handling
 
 ### Blockers/Concerns
 
@@ -95,9 +99,12 @@ None yet.
 - [Phase 2]: Node.js audio bridge from WSL2 to VB-Cable CABLE Input needs to be designed and implemented. → Scheduled as Phase 6.
 - [Phase 3]: Node.js video bridge from WSL2 to OBS Virtual Camera needs to be designed and implemented.
 - [Phase 4 — RESOLVED]: Gemini Live API (`@google/genai`) — verified and implemented in Phase 4.
+- [Phase 8 — watch]: WSL2 `list-devices` Windows audio device enumeration approach (registry query vs ffmpeg probe) not yet resolved — treat as bounded spike in Phase 8 planning.
+- [Phase 8 — watch]: tsdown shebang auto-detection must be verified empirically; add explicit `chmod +x dist/cli.js` to build script as safety net.
 
 ## Session Continuity
 
-Last session: 2026-03-25
-Stopped at: Completed 06-wsl2-audio-relay plan 06-02 (lifecycle integration, setup docs)
+Last session: 2026-03-26
+Stopped at: v1.1 roadmap created — phases 7, 8, 9 defined
 Resume file: None
+Next action: `/gsd:plan-phase 7`

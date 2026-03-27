@@ -4,6 +4,10 @@
 
 Five phases take the project from bare OS environment to a fully operational AI digital twin on a Google Meet call. Phase 1 resolves the highest-risk architecture unknown (WSL2 device visibility) before any pipeline code is written. Phases 2 and 3 build the audio and video foundations independently. Phase 4 wires in the Gemini Live AI layer. Phase 5 completes the bidirectional loop, adds persona configuration, and gives the operator visibility into what the twin is doing. Each phase delivers one independently verifiable capability; the next phase can only build on a working prior one.
 
+Phase 6 was an insertion to build the WSL2 audio relay server that bridges WSL2 Node.js to VB-Cable on Windows — a gap discovered during Phase 2 execution.
+
+Milestone v1.1 (Cleaner API) adds phases 7–9. These replace the raw `npm run dev` workflow with an installable CLI tool, add file-based configuration, introduce a provider abstraction layer, and unify error handling across the system.
+
 ## Phases
 
 **Phase Numbering:**
@@ -12,12 +16,20 @@ Five phases take the project from bare OS environment to a fully operational AI 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
+### v1.0 Phases (Complete)
+
 - [x] **Phase 1: Virtual Device Setup** - Virtual camera and microphone appear in browser device selector on both native Linux and WSL2 (completed 2026-03-26)
 - [x] **Phase 2: Audio Pipeline** - Audio captured from Meet participants and playable through virtual mic with echo-free topology (completed 2026-03-26)
 - [x] **Phase 3: Static Video Feed** - Static placeholder image streams to virtual camera at consistent frame rate (completed 2026-03-26)
 - [x] **Phase 4: AI Integration** - Gemini Live WebSocket session receives audio chunks and returns AI audio responses (completed 2026-03-26)
-- [ ] **Phase 5: End-to-End Loop and Operator Experience** - Full bidirectional AI conversation works in a live Meet call with configurable persona and operator monitoring
+- [x] **Phase 5: End-to-End Loop and Operator Experience** - Full bidirectional AI conversation works in a live Meet call with configurable persona and operator monitoring (completed 2026-03-26)
 - [x] **Phase 6: WSL2 Audio Relay Server** - TCP relay server bridges audio between WSL2 Node.js and VB-Cable on Windows (completed 2026-03-26)
+
+### v1.1 Phases (Cleaner API)
+
+- [ ] **Phase 7: Foundations** - Provider abstraction interface, typed error hierarchy, and role file loader in place as infrastructure for the CLI layer
+- [ ] **Phase 8: CLI Entry Point and Subcommands** - Installable `ai-meet` binary with all subcommands, flags, and file-based config working end-to-end
+- [ ] **Phase 9: Error Handling and Distribution Readiness** - Actionable error messages at every failure point and package ready for `npm install -g` distribution
 
 ## Phase Details
 
@@ -94,22 +106,6 @@ Plans:
 - [ ] 05-02-PLAN.md — Transcript writer, Gemini TEXT+AUDIO modality, text event emission
 - [ ] 05-03-PLAN.md — Operator audio monitor, full end-to-end integration, critical path enforcement
 
-## Progress
-
-**Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
-
-Note: Phase 3 depends only on Phase 1 and can be built concurrently with Phase 2 if bandwidth allows, but for sequential execution it follows Phase 2.
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Virtual Device Setup | 4/4 | Complete    | 2026-03-26 |
-| 2. Audio Pipeline | 0/TBD | Complete    | 2026-03-26 |
-| 3. Static Video Feed | 2/2 | Complete   | 2026-03-26 |
-| 4. AI Integration | 0/TBD | Complete    | 2026-03-26 |
-| 5. End-to-End Loop and Operator Experience | 0/3 | Planned | - |
-| 6. WSL2 Audio Relay Server | 3/3 | Complete   | 2026-03-26 |
-
 ### Phase 6: WSL2 Audio Relay Server
 **Goal**: TCP relay server on port 19876 bridges audio between WSL2 Node.js process and VB-Cable on Windows, completing the WSL2 audio path that Phase 2 capture/output clients expect
 **Depends on**: Phase 5
@@ -120,7 +116,61 @@ Note: Phase 3 depends only on Phase 1 and can be built concurrently with Phase 2
   3. PCM audio written by the output client is forwarded by the relay to VB-Cable's CABLE Input on Windows
   4. The relay starts automatically as part of `npm run dev` — no separate process needed
   5. Audio round-trip through the relay adds less than 50ms of latency
-**Plans**: TBD
+**Plans**: 3/3 plans complete
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 6 to break down)
+- [x] 06-01-PLAN.md — TCP relay server, Wsl2AudioCapture, Wsl2AudioOutput clients
+- [x] 06-02-PLAN.md — Lifecycle integration into main(), WSL2 setup docs, Windows bridge configuration
+- [x] 06-03-PLAN.md — DirectSound routing fix, VoiceMeter integration, end-to-end audio path
+
+### Phase 7: Foundations
+**Goal**: The infrastructure that the CLI layer depends on — typed error hierarchy, AI provider interface, GeminiProvider adapter, and role file loader — is in place and validated before any command handler code is written
+**Depends on**: Phase 6
+**Requirements**: PROV-01, PROV-02, CFG-03
+**Success Criteria** (what must be TRUE):
+  1. `src/errors/index.ts` exports a typed `AgentError` class hierarchy — calling code can catch a typed error and read `.message`, `.hint`, and `.exitCode` from it
+  2. `src/ai/provider.ts` exports a `RealtimeAudioProvider` interface; a `MockProvider` stub implements it and compiles cleanly — confirming the interface is shaped around the consumer, not around Gemini internals
+  3. `src/ai/gemini-provider.ts` exports a `GeminiProvider` class that wraps `GeminiLiveSession` via the adapter pattern without modifying `GeminiLiveSession` — existing live session behaviour is unchanged
+  4. Passing `--role path/to/role.md` (or a JSON file) merges the file contents into `Config.persona` — the AI twin's name and background are loaded from disk rather than hardcoded
+**Plans**: TBD
+
+### Phase 8: CLI Entry Point and Subcommands
+**Goal**: The `ai-meet` binary is installable, all subcommands work, and file-based configuration (`--config`, `--notes`, `--role`) is fully wired — replacing `npm run dev` as the normal operator workflow
+**Depends on**: Phase 7
+**Requirements**: CLI-01, CLI-02, CLI-03, CLI-04, CMD-01, CMD-02, CMD-03, CMD-04, CFG-01, CFG-02
+**Success Criteria** (what must be TRUE):
+  1. Running `npm install -g .` from the project root and then `ai-meet --version` from `/tmp` prints the version string — the binary is globally installed and resolves paths correctly from outside the project directory
+  2. Running `npx ai-meet start` without a global install launches the meeting session — the `npx` path works end-to-end
+  3. Running `ai-meet --help` lists all available subcommands; running `ai-meet start --help` lists all flags for the start command
+  4. Running `ai-meet list-devices` outputs the available audio input/output and video devices, including the correct Windows device names on WSL2
+  5. Running `ai-meet test-audio` runs the device verification check and reports pass/fail without starting a full meeting session
+  6. Running `ai-meet start --config <path> --notes <path>` launches a session with the specified config file and meeting notes loaded — no manual editing of hardcoded paths required
+**Plans**: TBD
+
+### Phase 9: Error Handling and Distribution Readiness
+**Goal**: Every critical failure point surfaces an actionable message with a fix hint instead of a raw stack trace, and the package is ready for `npm install -g` distribution
+**Depends on**: Phase 8
+**Requirements**: ERR-01, ERR-02, ERR-03
+**Success Criteria** (what must be TRUE):
+  1. Running `ai-meet start` without `ffmpeg` installed prints a clear message naming the missing dependency and the exact install command to fix it — not a Node.js stack trace
+  2. Providing a config file with a missing or invalid field prints the field name and expected value/type — not a raw Zod error dump
+  3. An AI session failure (e.g. missing API key, network drop) exits with a clear message and non-zero exit code; a video feed failure (non-critical) logs a warning and the session continues without video
+**Plans**: TBD
+
+## Progress
+
+**Execution Order:**
+v1.0: 1 → 2 → 3 → 4 → 5 → 6
+v1.1: 7 → 8 → 9
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Virtual Device Setup | 4/4 | Complete | 2026-03-26 |
+| 2. Audio Pipeline | 0/TBD | Complete | 2026-03-26 |
+| 3. Static Video Feed | 2/2 | Complete | 2026-03-26 |
+| 4. AI Integration | 0/TBD | Complete | 2026-03-26 |
+| 5. End-to-End Loop and Operator Experience | 3/3 | Complete | 2026-03-26 |
+| 6. WSL2 Audio Relay Server | 3/3 | Complete | 2026-03-26 |
+| 7. Foundations | 0/TBD | Not started | - |
+| 8. CLI Entry Point and Subcommands | 0/TBD | Not started | - |
+| 9. Error Handling and Distribution Readiness | 0/TBD | Not started | - |

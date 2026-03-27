@@ -122,28 +122,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| CLI-04 | — | Pending |
-| CMD-01 | — | Pending |
-| CMD-02 | — | Pending |
-| CMD-03 | — | Pending |
-| CMD-04 | — | Pending |
-| CFG-01 | — | Pending |
-| CFG-02 | — | Pending |
-| CFG-03 | — | Pending |
-| ERR-01 | — | Pending |
-| ERR-02 | — | Pending |
-| ERR-03 | — | Pending |
-| PROV-01 | — | Pending |
-| PROV-02 | — | Pending |
+| CLI-01 | Phase 8 | Pending |
+| CLI-02 | Phase 8 | Pending |
+| CLI-03 | Phase 8 | Pending |
+| CLI-04 | Phase 8 | Pending |
+| CMD-01 | Phase 8 | Pending |
+| CMD-02 | Phase 8 | Pending |
+| CMD-03 | Phase 8 | Pending |
+| CMD-04 | Phase 8 | Pending |
+| CFG-01 | Phase 8 | Pending |
+| CFG-02 | Phase 8 | Pending |
+| CFG-03 | Phase 7 | Pending |
+| ERR-01 | Phase 9 | Pending |
+| ERR-02 | Phase 9 | Pending |
+| ERR-03 | Phase 9 | Pending |
+| PROV-01 | Phase 7 | Pending |
+| PROV-02 | Phase 7 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 ⚠️
+- Mapped to phases: 16
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-25*
-*Last updated: 2026-03-26 after milestone v1.1 requirements definition*
+*Last updated: 2026-03-26 after milestone v1.1 roadmap creation*
