@@ -132,7 +132,12 @@ Plans:
   2. `src/ai/provider.ts` exports a `RealtimeAudioProvider` interface; a `MockProvider` stub implements it and compiles cleanly — confirming the interface is shaped around the consumer, not around Gemini internals
   3. `src/ai/gemini-provider.ts` exports a `GeminiProvider` class that wraps `GeminiLiveSession` via the adapter pattern without modifying `GeminiLiveSession` — existing live session behaviour is unchanged
   4. Passing `--role path/to/role.md` (or a JSON file) merges the file contents into `Config.persona` — the AI twin's name and background are loaded from disk rather than hardcoded
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — TDD: AgentError class hierarchy (typed errors with hints and exit codes)
+- [ ] 07-02-PLAN.md — TDD: RealtimeAudioProvider interface and MockProvider
+- [ ] 07-03-PLAN.md — GeminiProvider adapter, role file loader, export wiring
 
 ### Phase 8: CLI Entry Point and Subcommands
 **Goal**: The `ai-meet` binary is installable, all subcommands work, and file-based configuration (`--config`, `--notes`, `--role`) is fully wired — replacing `npm run dev` as the normal operator workflow
@@ -171,6 +176,6 @@ v1.1: 7 → 8 → 9
 | 4. AI Integration | 0/TBD | Complete | 2026-03-26 |
 | 5. End-to-End Loop and Operator Experience | 3/3 | Complete | 2026-03-26 |
 | 6. WSL2 Audio Relay Server | 3/3 | Complete | 2026-03-26 |
-| 7. Foundations | 0/TBD | Not started | - |
+| 7. Foundations | 0/3 | Not started | - |
 | 8. CLI Entry Point and Subcommands | 0/TBD | Not started | - |
 | 9. Error Handling and Distribution Readiness | 0/TBD | Not started | - |
