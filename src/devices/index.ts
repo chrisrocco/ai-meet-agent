@@ -14,6 +14,7 @@ export interface DeviceStatus {
   audioSinkName: string;
   audioMicName: string;
   testPatternRunning: boolean;
+  videoAvailable: boolean;
 }
 
 export class DeviceManager {
@@ -66,6 +67,7 @@ export class DeviceManager {
         audioSinkName: 'VB-Cable CABLE Input (Windows)',
         audioMicName: 'VB-Cable CABLE Output (Windows)',
         testPatternRunning: false,
+        videoAvailable: true,
       };
     }
 
@@ -109,6 +111,7 @@ export class DeviceManager {
       audioSinkName: this.config.devices.sink.sinkName,
       audioMicName: this.config.devices.mic.sinkName,
       testPatternRunning: this.camera.isRunning,
+      videoAvailable: prereqs.videoAvailable ?? false,
     };
   }
 

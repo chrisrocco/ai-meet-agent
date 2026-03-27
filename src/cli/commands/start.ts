@@ -35,6 +35,7 @@ interface StartOptions {
   notes?: string;
   role?: string;
   verbose?: boolean;
+  video?: boolean;
 }
 
 /**
@@ -49,6 +50,7 @@ export function registerStartCommand(program: Command): void {
     .option('-n, --notes <path>', 'path to meeting notes markdown file')
     .option('-r, --role <path>', 'path to persona/role file')
     .option('--verbose', 'enable verbose logging')
+    .option('--no-video', 'skip virtual camera (v4l2loopback not required)')
     .action(async (options: StartOptions) => {
       try {
         await startSession(options);
@@ -105,7 +107,6 @@ async function startSession(options: StartOptions): Promise<void> {
   }
 
   if (platform !== 'wsl2') {
-    console.log(`Camera: ${config.devices.camera.label} (/dev/video${config.devices.camera.videoNr})`);
     console.log(`Mic:    ${config.devices.mic.label}`);
   }
   console.log('');
@@ -256,28 +257,38 @@ async function startSession(options: StartOptions): Promise<void> {
     monitor.write(pcm16k);
   });
 
-  // Start video feed (non-fatal — video failure degrades gracefully)
+  // Start video feed (optional — skipped if v4l2loopback not available or --no-video)
   let videoFeed: VideoFeed | null = null;
+  const skipVideo = options.video === false || (platform !== 'wsl2' && !status.videoAvailable);
 
-  try {
-    videoFeed = createVideoFeed(config.devices.camera.videoNr, config.video.mjpegPort, platform);
-    const imagePath = config.devices.camera.imagePath ?? DEFAULT_PLACEHOLDER_PATH;
-    videoFeed.start(imagePath);
-
-    videoFeed.on('restarting', () => console.log('[VideoFeed] Restarting...'));
-    videoFeed.on('error', (err: Error) => {
-      console.warn(`[VideoFeed] Error: ${err.message}`);
-    });
-
-    if (platform === 'wsl2') {
-      console.log(`\n[VideoFeed] MJPEG stream at http://localhost:${config.video.mjpegPort}/feed`);
-      console.log('[VideoFeed] Configure OBS Media Source — see docs/wsl2-video-setup.md');
+  if (skipVideo) {
+    if (options.video === false) {
+      console.log('\n[VideoFeed] Skipped (--no-video flag)');
     } else {
-      console.log(`\n[VideoFeed] Static image streaming to /dev/video${config.devices.camera.videoNr}`);
+      console.log('\n[VideoFeed] Skipped (v4l2loopback not available)');
+      console.log('[VideoFeed] Join Meet without camera, or install v4l2loopback for virtual camera support.');
     }
-  } catch (err) {
-    console.warn(`[VideoFeed] Could not start: ${(err as Error).message}`);
-    console.warn('[VideoFeed] Video feed will not be active this session.');
+  } else {
+    try {
+      videoFeed = createVideoFeed(config.devices.camera.videoNr, config.video.mjpegPort, platform);
+      const imagePath = config.devices.camera.imagePath ?? DEFAULT_PLACEHOLDER_PATH;
+      videoFeed.start(imagePath);
+
+      videoFeed.on('restarting', () => console.log('[VideoFeed] Restarting...'));
+      videoFeed.on('error', (err: Error) => {
+        console.warn(`[VideoFeed] Error: ${err.message}`);
+      });
+
+      if (platform === 'wsl2') {
+        console.log(`\n[VideoFeed] MJPEG stream at http://localhost:${config.video.mjpegPort}/feed`);
+        console.log('[VideoFeed] Configure OBS Media Source — see docs/wsl2-video-setup.md');
+      } else {
+        console.log(`\n[VideoFeed] Static image streaming to /dev/video${config.devices.camera.videoNr}`);
+      }
+    } catch (err) {
+      console.warn(`[VideoFeed] Could not start: ${(err as Error).message}`);
+      console.warn('[VideoFeed] Video feed will not be active this session.');
+    }
   }
 
   // Startup banner
@@ -286,6 +297,7 @@ async function startSession(options: StartOptions): Promise<void> {
   console.log(`Persona:    ${config.persona.name} (${config.persona.role})`);
   if (meetingContext) console.log(`Meeting:    ${options.notes}`);
   console.log(`Transcript: ./transcript.log`);
+  console.log(`Video:      ${videoFeed ? 'Active' : 'Disabled'}`);
   console.log(`Monitor:    Active (operator hears both sides)`);
   console.log('\nPress Ctrl+C to stop.');
 
