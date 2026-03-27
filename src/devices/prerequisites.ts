@@ -49,7 +49,7 @@ export function checkPrerequisites(videoNr: number = 10): PrereqResult {
       name: 'v4l2loopback kernel module (video)',
       ok: false,
       optional: true,
-      fix: `sudo modprobe v4l2loopback video_nr=${videoNr} card_label="AI Meet Agent Camera" exclusive_caps=1 max_buffers=2`,
+      fix: `sudo modprobe v4l2loopback video_nr=${videoNr} card_label="AIMeet Camera" exclusive_caps=1 max_buffers=2`,
     });
   }
 
@@ -63,7 +63,7 @@ export function checkPrerequisites(videoNr: number = 10): PrereqResult {
       name: `${devicePath} exists (video)`,
       ok: false,
       optional: true,
-      fix: `sudo modprobe v4l2loopback video_nr=${videoNr} card_label="AI Meet Agent Camera" exclusive_caps=1 max_buffers=2`,
+      fix: `sudo modprobe v4l2loopback video_nr=${videoNr} card_label="AIMeet Camera" exclusive_caps=1 max_buffers=2`,
     });
   }
 
