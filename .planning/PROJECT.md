@@ -8,24 +8,38 @@ A digital twin system that joins Google Meet calls through virtual audio/video d
 
 Bidirectional realtime audio conversation through a Google Meet call — someone speaks, the AI twin hears and responds naturally, creating a convincing stand-in presence.
 
+## Current Milestone: v1.1 Cleaner API
+
+**Goal:** Replace the raw `npm run dev` workflow with an installable CLI tool that has subcommands, file-based meeting/role configuration, graceful error handling, and a provider abstraction layer for future AI model support.
+
+**Target features:**
+- Installable CLI tool (`npm install -g` / npx)
+- Subcommand interface (`ai-meet start`, `ai-meet list-devices`, `ai-meet test-audio`)
+- File-based meeting notes and role/persona configuration (`--notes`, `--role`)
+- Graceful error handling with actionable messages (missing deps, silent failures, stack traces)
+- AI provider abstraction (Gemini implemented, interface ready for OpenAI/others)
+
 ## Requirements
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Virtual camera device appears as selectable webcam in browser — v1.0 Phase 1
+- ✓ Virtual microphone device appears as selectable mic in browser — v1.0 Phase 1
+- ✓ Capture incoming audio from Google Meet — v1.0 Phase 2
+- ✓ Send captured audio to Google AI API for realtime processing — v1.0 Phase 4
+- ✓ Receive AI-generated audio responses from Google AI API — v1.0 Phase 4
+- ✓ Pipe AI response audio through virtual microphone back into Meet — v1.0 Phase 2/6
+- ✓ Bidirectional audio loop works end-to-end in a live call — v1.0 Phase 5
+- ✓ Static placeholder image fed through virtual camera as video — v1.0 Phase 3
+- ✓ AI twin has configurable persona with system prompt — v1.0 Phase 5
+- ✓ Low-latency audio round-trip (conversational feel) — v1.0 Phase 4
 
 ### Active
 
-- [ ] Virtual camera device appears as selectable webcam in browser (e.g. "Mock Input")
-- [ ] Virtual microphone device appears as selectable mic in browser (e.g. "Mock Input")
-- [ ] Capture incoming audio from Google Meet (other participants' speech)
-- [ ] Send captured audio to Google AI API for realtime processing
-- [ ] Receive AI-generated audio responses from Google AI API
-- [ ] Pipe AI response audio through virtual microphone back into Meet
-- [ ] Bidirectional audio loop works end-to-end in a live call
-- [ ] Static placeholder image fed through virtual camera as video
-- [ ] AI twin has configurable persona with system prompt (background, role, meeting context)
-- [ ] Low-latency audio round-trip (conversational feel, not awkward delays)
+- [ ] Installable CLI tool with subcommand interface
+- [ ] File-based meeting notes and role/persona configuration
+- [ ] Graceful error handling with actionable messages
+- [ ] AI provider abstraction layer (Gemini as first implementation)
 
 ### Out of Scope
 
@@ -65,4 +79,4 @@ Bidirectional realtime audio conversation through a Google Meet call — someone
 | Persona with context | AI twin fed system prompt with user's background and meeting context | — Pending |
 
 ---
-*Last updated: 2025-03-25 after initialization*
+*Last updated: 2026-03-26 after milestone v1.1 start*
