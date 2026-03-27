@@ -27,6 +27,15 @@ export class VirtualAudioDevices {
       throw new Error('VirtualAudioDevices: already created. Call cleanup() first.');
     }
 
+    // Save current default sink so we can restore it after creating null-sinks
+    // (PipeWire may switch the default to a newly created null-sink)
+    let previousDefaultSink: string | null = null;
+    try {
+      previousDefaultSink = execSync('pactl get-default-sink', {
+        encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+    } catch { /* ignore — will skip restore */ }
+
     // 1. Create capture sink (Meet audio goes here, parec reads its monitor)
     const sinkOut = execSync(
       `pactl load-module module-null-sink sink_name="${sinkName}" sink_properties=device.description="${sinkLabel}"`,
@@ -55,6 +64,13 @@ export class VirtualAudioDevices {
     this.micSourceModuleId = parseInt(micSourceOut, 10);
     if (isNaN(this.micSourceModuleId)) {
       throw new Error(`pactl returned unexpected output for mic source: "${micSourceOut}"`);
+    }
+
+    // Restore default sink so operator audio (ffplay) goes to speakers, not a null-sink
+    if (previousDefaultSink) {
+      try {
+        execSync(`pactl set-default-sink "${previousDefaultSink}"`, { stdio: 'pipe' });
+      } catch { /* ignore — non-fatal */ }
     }
 
     console.log(`[VirtualAudio] Loaded sink module ${this.sinkModuleId} (${sinkLabel})`);
