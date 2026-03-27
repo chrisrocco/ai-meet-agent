@@ -1,0 +1,22 @@
+# Planning and documentation (development only)
+.planning/
+.claude/
+.agents/
+docs/
+scripts/
+
+# Test files
+src/**/*.test.ts
+test-*.mjs
+test-*.ts
+
+# Dev artifacts
+.env
+.env.*
+transcript.log
+meeting-notes.md
+tsconfig.json
+
+# Git/editor
+.git/
+.gitignore

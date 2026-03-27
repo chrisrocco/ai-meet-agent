@@ -1,11 +1,34 @@
 {
   "name": "ai-meet-agent",
   "version": "0.1.0",
-  "private": true,
+  "description": "AI meeting twin — bidirectional realtime audio through Google Meet",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisrocco/ai-meet-agent.git"
+  },
+  "keywords": [
+    "ai",
+    "meeting",
+    "google-meet",
+    "gemini",
+    "audio",
+    "virtual-devices",
+    "cli"
+  ],
   "bin": {
     "ai-meet": "./bin/ai-meet.ts"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "!src/**/*.test.ts",
+    "assets/",
+    "LICENSE",
+    "README.md",
+    "config.example.json"
+  ],
   "engines": {
     "node": ">=22"
   },

@@ -1,0 +1,38 @@
+{
+  "persona": {
+    "name": "AI Assistant",
+    "role": "Meeting Participant",
+    "background": "A helpful AI that participates in meetings",
+    "instructions": "Be concise and professional. Listen actively.",
+    "introduceOnStart": true
+  },
+  "ai": {
+    "model": "gemini-2.5-flash-native-audio-latest"
+  },
+  "devices": {
+    "camera": {
+      "label": "AI Meet Agent Camera",
+      "videoNr": 10
+    },
+    "mic": {
+      "label": "AI Meet Agent Mic",
+      "sinkName": "ai_meet_mic"
+    },
+    "sink": {
+      "label": "AI Meet Agent Sink",
+      "sinkName": "ai_meet_sink"
+    }
+  },
+  "audio": {
+    "relayPort": 19876
+  },
+  "video": {
+    "mjpegPort": 8085
+  },
+  "wsl2": {
+    "captureDevice": "CABLE Output (VB-Audio Virtual Cable)",
+    "outputDevice": "Voicemeeter Input (VB-Audio Voicemeeter VAIO)",
+    "ffmpegPath": "ffmpeg.exe",
+    "ffplayPath": "ffplay.exe"
+  }
+}
