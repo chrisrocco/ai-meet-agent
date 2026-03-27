@@ -8,6 +8,8 @@
  */
 import { Command } from 'commander';
 import { createRequire } from 'module';
+import { registerListDevicesCommand } from './commands/list-devices.js';
+import { registerTestAudioCommand } from './commands/test-audio.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json') as { version: string; description: string };
@@ -32,25 +34,9 @@ program
     process.exit(1);
   });
 
-// list-devices subcommand — stub until plan 08-02 wires the real handler
-program
-  .command('list-devices')
-  .description('List available audio/video devices')
-  .option('-c, --config <path>', 'path to config.json')
-  .action(async () => {
-    console.error('list-devices command not yet wired — see plan 08-02');
-    process.exit(1);
-  });
-
-// test-audio subcommand — stub until plan 08-02 wires the real handler
-program
-  .command('test-audio')
-  .description('Verify audio device setup')
-  .option('-c, --config <path>', 'path to config.json')
-  .action(async () => {
-    console.error('test-audio command not yet wired — see plan 08-02');
-    process.exit(1);
-  });
+// Register real command handlers
+registerListDevicesCommand(program);
+registerTestAudioCommand(program);
 
 /**
  * Parse argv and run the matched command.
